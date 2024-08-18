@@ -293,10 +293,6 @@ class MySpawner(KubeSpawner):
             {
                 'name': 'volume-new-{username}',
                 'mountPath': '/srv/starter_content/_User-Persistent-Storage_New',
-            },
-            {
-                'name': 'volume-shared-pvc',
-                'mountPath': '/srv/starter_content/_Shared-Storage_',
             }
         ]
         self.volumes = [
@@ -304,12 +300,6 @@ class MySpawner(KubeSpawner):
                 'name': 'volume-new-{username}',
                 'persistentVolumeClaim': {
                     'claimName': 'claim-new-{username}'
-                }
-            },
-            {
-                'name': 'volume-shared-pvc',
-                'persistentVolumeClaim': {
-                    'claimName': 'shared-pvc'
                 }
             }
         ]
