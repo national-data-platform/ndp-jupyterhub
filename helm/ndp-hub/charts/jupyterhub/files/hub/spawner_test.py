@@ -6,6 +6,10 @@ from oauthenticator.generic import GenericOAuthenticator
 from secrets import token_hex
 import copy
 
+CLIENT_ID = 'jupyterhub_test'
+CLIENT_SECRET = ""
+KEYCLOAK_URL = "https://idp-test.nationaldataplatform.org"
+
 aws_access_key_id = 'admin'
 aws_secret_access_key = 'sample_key'
 mlflow_s3_endpoint_url = 'http://minio:9000'
@@ -14,6 +18,9 @@ mlflow_admin_username = 'admin'
 mlflow_admin_password = 'password'
 mlflow_default_user_password = 'password'
 aws_bucket_name = 'mlflow'
+CKAN_API_URL = "https://ndp-test.sdsc.edu/catalog/api/3/action/"
+WORKSPACE_API_URL = "https://ndp-test.sdsc.edu/workspaces-api"
+
 
 original_profile_list = [
     {
@@ -357,23 +364,21 @@ class MyAuthenticator(GenericOAuthenticator):
         print(auth_state)
         if auth_state:
             refresh_token = auth_state.get('refresh_token')
-            client_id = self.client_id
-            client_secret = self.client_secret
 
-            if not self.check_and_refresh_token(refresh_token, client_id, client_secret, auth_state):
+            if not self.check_and_refresh_token(refresh_token, auth_state):
                 if handler:
                     return False
                 return False
         return True
 
-    def check_and_refresh_token(self, refresh_token, client_id, client_secret, auth_state):
+    def check_and_refresh_token(self, refresh_token, auth_state):
         print(f"Checking refresh_token")
-        response = requests.post("https://idp-test.nationaldataplatform.org/realms/NDP/protocol/openid-connect/token",
+        response = requests.post(f"{KEYCLOAK_URL}/realms/NDP/protocol/openid-connect/token",
                                  data={
                                      'grant_type': 'refresh_token',
                                      'refresh_token': refresh_token,
-                                     'client_id': 'jupyterhub_test',
-                                     'client_secret': 'TMEITmuyXyzPMdu7HHAKKHQesCdIZxoj'
+                                     'client_id': CLIENT_ID,
+                                     'client_secret': CLIENT_SECRET
                                  })
 
         if response.status_code == 200:
@@ -438,12 +443,12 @@ def pre_spawn_hook(spawner):
     spawner.environment.update({'MLFLOW_TRACKING_USERNAME': username})
 
     # ToDo: hardcoded
-    spawner.environment.update({"KEYCLOAK_URL": "https://idp-test.nationaldataplatform.org/"})
-    spawner.environment.update({"KEYCLOAK_CLIENT_ID": "jupyterhub_test"})
-    spawner.environment.update({"KEYCLOAK_CLIENT_SECRET": ""})
+    spawner.environment.update({"KEYCLOAK_URL": KEYCLOAK_URL})
+    spawner.environment.update({"KEYCLOAK_CLIENT_ID": CLIENT_ID})
+    spawner.environment.update({"KEYCLOAK_CLIENT_SECRET": CLIENT_SECRET})
     spawner.environment.update({"KEYCLOAK_REALM": "NDP"})
-    spawner.environment.update({"CKAN_API_URL": "https://ndp-test.sdsc.edu/catalog/api/3/action/"})
-    spawner.environment.update({"WORKSPACE_API_URL": "https://ndp-test.sdsc.edu/workspaces-api"})
+    spawner.environment.update({"CKAN_API_URL": CKAN_API_URL})
+    spawner.environment.update({"WORKSPACE_API_URL": WORKSPACE_API_URL})
 
     # for getting dataset_id from url params
     # spawner.environment.update({'DATASET_ID': spawner.user_options['dataset_id']})
