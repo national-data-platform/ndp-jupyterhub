@@ -1,7 +1,10 @@
-# to change environment: ndp-test-jupyterhub to ndp-staging-jupyterhub or ndp-jupyterhub
-# 'image': 'gitlab-registry.nrp-nautilus.io/ndp/ndp-docker-images/jhub-spawn:pgml_v0.1.5_test' to pgml_v0.1.5_staging or pgml_v0.1.5_prod
-#  mlflow_tracking_uri = 'https://ndp-test.sdsc.edu/mlflow' to https://ndp-staging.sdsc.edu/mlflow or https://ndp.sdsc.edu/mlflow
-# helm upgrade --cleanup-on-fail --install ndp-hub ndp-hub --kube-context nautilus --namespace ndp-test --values ndp-hub/values_test.yaml
+# Notes:
+# NDP Test Nautilus namespace: ndp-test
+# Create shared PVC: kubectl apply -f ndp-hub/shared-pvc.yaml
+# Install client-secret k8s secret (need to insert it in the file ndp-hub/my_secret.yaml): kubectl create secret generic jupyterhub-secret --from-file=values.yaml=ndp-hub/my_secret.yaml -n ndp-test
+# Install from ./jhub/helm folder: helm upgrade --cleanup-on-fail --install ndp-hub ndp-hub --kube-context nautilus --namespace ndp-test --values ndp-hub/values_test.yaml
+# Uninstall: helm uninstall ndp-hub --kube-context nautilus --namespace ndp-test
+# URL: ndp-test-jupyterhub.nrp-nautilus.io
 jupyterhub:
   hub:
     existingSecret: jupyterhub-secret
@@ -110,9 +113,9 @@ jupyterhub:
     networkPolicy:
       enabled: false
     initContainers:
-    - name: volume-permissions2
+    - name: volume-permissions
       image: busybox
-      command: [ "sh", "-c", "chmod 777 /srv/starter_content/_User-Persistent-Storage_CephFS_" ]
+      command: ["sh", "-c", "chmod 777 /srv/starter_content/_User-Persistent-Storage_CephFS_"]
       volumeMounts:
         - mountPath: /srv/starter_content/_User-Persistent-Storage_CephFS_
           name: volume-ceph-{username}

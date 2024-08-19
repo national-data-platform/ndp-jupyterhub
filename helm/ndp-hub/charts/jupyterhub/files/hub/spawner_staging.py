@@ -6,6 +6,12 @@ from oauthenticator.generic import GenericOAuthenticator
 from secrets import token_hex
 import copy
 
+CLIENT_ID = 'jupyterhub_test'
+CLIENT_SECRET = ""
+KEYCLOAK_URL = "https://idp-test.nationaldataplatform.org"
+
+USER_PERSISTENT_STORAGE_FOLDER = "_User-Persistent-Storage_CephFS_"
+
 aws_access_key_id = 'admin'
 aws_secret_access_key = 'sample_key'
 mlflow_s3_endpoint_url = 'http://minio:9000'
@@ -14,6 +20,9 @@ mlflow_admin_username = 'admin'
 mlflow_admin_password = 'password'
 mlflow_default_user_password = 'password'
 aws_bucket_name = 'mlflow'
+CKAN_API_URL = "https://ndp-staging.sdsc.edu/catalog/api/3/action/"
+WORKSPACE_API_URL = "https://ndp-staging.sdsc.edu/workspaces-api"
+
 
 original_profile_list = [
     {
@@ -177,7 +186,7 @@ class MySpawner(KubeSpawner):
 
                     <b><i>Note:</b> Please stop your server after it is no longer needed, or in case you want to launch different content image
                     <p style="color:green;">In order to stop the server from running Jupyter Lab, go to File > Hub Control Panel > Stop Server</i></p>
-                    <p><i><b>Note:</b> ./_User-Persistent-Storage_New is the persistent volume directory, make sure to save your work in it, otherwise it will be deleted</p>
+                    <p><i><b>Note:</b> ./_User-Persistent-Storage_CephFS_ is the persistent volume directory, make sure to save your work in it, otherwise it will be deleted</p>
                     """
 
     def options_from_form(self, formdata):
@@ -291,15 +300,15 @@ class MySpawner(KubeSpawner):
 
         self.volume_mounts = [
             {
-                'name': 'volume-new-{username}',
-                'mountPath': '/srv/starter_content/_User-Persistent-Storage_New',
+                'name': 'volume-ceph-{username}',
+                'mountPath': f'/srv/starter_content/{USER_PERSISTENT_STORAGE_FOLDER}',
             }
         ]
         self.volumes = [
             {
-                'name': 'volume-new-{username}',
+                'name': 'volume-ceph-{username}',
                 'persistentVolumeClaim': {
-                    'claimName': 'claim-new-{username}'
+                    'claimName': 'claim-ceph-{username}'
                 }
             }
         ]
@@ -347,23 +356,21 @@ class MyAuthenticator(GenericOAuthenticator):
         print(auth_state)
         if auth_state:
             refresh_token = auth_state.get('refresh_token')
-            client_id = self.client_id
-            client_secret = self.client_secret
 
-            if not self.check_and_refresh_token(refresh_token, client_id, client_secret, auth_state):
+            if not self.check_and_refresh_token(refresh_token, auth_state):
                 if handler:
                     return False
                 return False
         return True
 
-    def check_and_refresh_token(self, refresh_token, client_id, client_secret, auth_state):
+    def check_and_refresh_token(self, refresh_token, auth_state):
         print(f"Checking refresh_token")
-        response = requests.post("https://idp-test.nationaldataplatform.org/realms/NDP/protocol/openid-connect/token",
+        response = requests.post(f"{KEYCLOAK_URL}/realms/NDP/protocol/openid-connect/token",
                                  data={
                                      'grant_type': 'refresh_token',
                                      'refresh_token': refresh_token,
-                                     'client_id': 'jupyterhub_test',
-                                     'client_secret': ''
+                                     'client_id': CLIENT_ID,
+                                     'client_secret': CLIENT_SECRET
                                  })
 
         if response.status_code == 200:
@@ -412,6 +419,8 @@ def pre_spawn_hook(spawner):
     spawner._profile_list = copy.deepcopy(original_profile_list)
 
     # pip install jupyterlab-launchpad
+    git_creds_command = f"mkdir -p /srv/starter_content/{USER_PERSISTENT_STORAGE_FOLDER}/.git"
+    git_creds_command2 = f'git config --global credential.helper "store --file=/srv/starter_content/{USER_PERSISTENT_STORAGE_FOLDER}/.git/.git-credentials"'
     pip_install_command = ("pip install jupyterlab-git ndp-jupyterlab-extension --index-url "
                            "https://gitlab.nrp-nautilus.io/api/v4/projects/4145/packages/pypi/simple")
 
@@ -420,23 +429,19 @@ def pre_spawn_hook(spawner):
     spawner.cmd = [
         "bash",
         "-c",
-        f"{pip_install_command} && exec {' '.join(original_cmd)}"
+        f"{git_creds_command} && {git_creds_command2} && {pip_install_command} && exec {' '.join(original_cmd)}"
     ]
 
     # make username available for MLflow library
     username = spawner.user.name
     spawner.environment.update({'MLFLOW_TRACKING_USERNAME': username})
 
-    # ToDo: hardcoded
-    spawner.environment.update({"KEYCLOAK_URL": "https://idp-test.nationaldataplatform.org/"})
-    spawner.environment.update({"KEYCLOAK_CLIENT_ID": "jupyterhub_test"})
-    spawner.environment.update({"KEYCLOAK_CLIENT_SECRET": ""})
+    spawner.environment.update({"KEYCLOAK_URL": KEYCLOAK_URL})
+    spawner.environment.update({"KEYCLOAK_CLIENT_ID": CLIENT_ID})
+    spawner.environment.update({"KEYCLOAK_CLIENT_SECRET": CLIENT_SECRET})
     spawner.environment.update({"KEYCLOAK_REALM": "NDP"})
-    spawner.environment.update({"CKAN_API_URL": "https://ndp-test.sdsc.edu/catalog/api/3/action/"})
-    spawner.environment.update({"WORKSPACE_API_URL": "https://ndp-test.sdsc.edu/workspaces-api"})
-
-    # for getting dataset_id from url params
-    # spawner.environment.update({'DATASET_ID': spawner.user_options['dataset_id']})
+    spawner.environment.update({"CKAN_API_URL": CKAN_API_URL})
+    spawner.environment.update({"WORKSPACE_API_URL": WORKSPACE_API_URL})
 
     # create user inside MLFlow using its admin account
     try:
