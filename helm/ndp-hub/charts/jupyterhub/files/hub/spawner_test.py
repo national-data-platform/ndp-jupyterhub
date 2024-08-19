@@ -7,8 +7,10 @@ from secrets import token_hex
 import copy
 
 CLIENT_ID = 'jupyterhub_test'
-CLIENT_SECRET = ""
+CLIENT_SECRET = "TMEITmuyXyzPMdu7HHAKKHQesCdIZxoj"
 KEYCLOAK_URL = "https://idp-test.nationaldataplatform.org"
+
+USER_PERSISTENT_STORAGE_FOLDER = "_User-Persistent-Storage_CephFS_"
 
 aws_access_key_id = 'admin'
 aws_secret_access_key = 'sample_key'
@@ -184,7 +186,7 @@ class MySpawner(KubeSpawner):
 
                     <b><i>Note:</b> Please stop your server after it is no longer needed, or in case you want to launch different content image
                     <p style="color:green;">In order to stop the server from running Jupyter Lab, go to File > Hub Control Panel > Stop Server</i></p>
-                    <p><i><b>Note:</b> ./_User-Persistent-Storage_New is the persistent volume directory, make sure to save your work in it, otherwise it will be deleted</p>
+                    <p><i><b>Note:</b> ./_User-Persistent-Storage_CephFS_ is the persistent volume directory, make sure to save your work in it, otherwise it will be deleted</p>
                     """
 
     def options_from_form(self, formdata):
@@ -298,25 +300,15 @@ class MySpawner(KubeSpawner):
 
         self.volume_mounts = [
             {
-                'name': 'volume-new-{username}',
-                'mountPath': '/srv/starter_content/_User-Persistent-Storage_New',
-            },
-            {
-                'name': 'volume-shared-pvc',
-                'mountPath': '/srv/starter_content/_Shared-Storage_',
+                'name': 'volume-ceph-{username}',
+                'mountPath': f'/srv/starter_content/{USER_PERSISTENT_STORAGE_FOLDER}',
             }
         ]
         self.volumes = [
             {
-                'name': 'volume-new-{username}',
+                'name': 'volume-ceph-{username}',
                 'persistentVolumeClaim': {
-                    'claimName': 'claim-new-{username}'
-                }
-            },
-            {
-                'name': 'volume-shared-pvc',
-                'persistentVolumeClaim': {
-                    'claimName': 'shared-pvc'
+                    'claimName': 'claim-ceph-{username}'
                 }
             }
         ]
@@ -427,6 +419,8 @@ def pre_spawn_hook(spawner):
     spawner._profile_list = copy.deepcopy(original_profile_list)
 
     # pip install jupyterlab-launchpad
+    git_creds_command = f"mkdir -p /srv/starter_content/{USER_PERSISTENT_STORAGE_FOLDER}/.git"
+    git_creds_command2 = f'git config --global credential.helper "store --file=/srv/starter_content/{USER_PERSISTENT_STORAGE_FOLDER}/.git/.git-credentials"'
     pip_install_command = ("pip install jupyterlab-git ndp-jupyterlab-extension --index-url "
                            "https://gitlab.nrp-nautilus.io/api/v4/projects/4145/packages/pypi/simple")
 
@@ -435,23 +429,19 @@ def pre_spawn_hook(spawner):
     spawner.cmd = [
         "bash",
         "-c",
-        f"{pip_install_command} && exec {' '.join(original_cmd)}"
+        f"{git_creds_command} && {git_creds_command2} && {pip_install_command} && exec {' '.join(original_cmd)}"
     ]
 
     # make username available for MLflow library
     username = spawner.user.name
     spawner.environment.update({'MLFLOW_TRACKING_USERNAME': username})
 
-    # ToDo: hardcoded
     spawner.environment.update({"KEYCLOAK_URL": KEYCLOAK_URL})
     spawner.environment.update({"KEYCLOAK_CLIENT_ID": CLIENT_ID})
     spawner.environment.update({"KEYCLOAK_CLIENT_SECRET": CLIENT_SECRET})
     spawner.environment.update({"KEYCLOAK_REALM": "NDP"})
     spawner.environment.update({"CKAN_API_URL": CKAN_API_URL})
     spawner.environment.update({"WORKSPACE_API_URL": WORKSPACE_API_URL})
-
-    # for getting dataset_id from url params
-    # spawner.environment.update({'DATASET_ID': spawner.user_options['dataset_id']})
 
     # create user inside MLFlow using its admin account
     try:
