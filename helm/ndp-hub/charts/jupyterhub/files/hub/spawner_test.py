@@ -7,7 +7,7 @@ from secrets import token_hex
 import copy
 
 CLIENT_ID = 'jupyterhub_test'
-CLIENT_SECRET = "TMEITmuyXyzPMdu7HHAKKHQesCdIZxoj"
+CLIENT_SECRET = ""
 KEYCLOAK_URL = "https://idp-test.nationaldataplatform.org"
 
 USER_PERSISTENT_STORAGE_FOLDER = "_User-Persistent-Storage_CephFS_"
