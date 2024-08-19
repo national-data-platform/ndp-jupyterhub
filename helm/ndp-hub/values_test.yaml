@@ -169,7 +169,7 @@ jupyterhub:
 
   cull:
     enabled: true
-    users: true
+    users: false
     removeNamedServers: false
     timeout: 3600
     every: 600
