@@ -2,7 +2,7 @@
 # NDP Staging Nautilus namespace: ndp-staging
 # Create shared PVC: kubectl apply -f ndp-hub/shared-pvc.yaml
 # Install client-secret k8s secret (need to insert it in the file ndp-hub/my_secret.yaml): kubectl create secret generic jupyterhub-secret --from-file=values.yaml=ndp-hub/my_secret.yaml -n ndp-staging
-# Install from ./jhub/helm folder: helm upgrade --cleanup-on-fail --install ndp-hub ndp-hub --kube-context nautilus --namespace ndp-staging --values ndp-hub/values_staging.yaml
+# Install from ./helm folder: helm upgrade --cleanup-on-fail --install ndp-hub ndp-hub --kube-context nautilus --namespace ndp-staging --values ndp-hub/values_staging.yaml
 # Uninstall: helm uninstall ndp-hub --kube-context nautilus --namespace ndp-staging
 # URL: ndp-staging-jupyterhub.nrp-nautilus.io
 
