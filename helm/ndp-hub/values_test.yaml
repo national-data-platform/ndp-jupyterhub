@@ -47,7 +47,7 @@ jupyterhub:
         accessModes:
           - ReadWriteOnce
         storage: 10Gi
-        storageClassName: rook-ceph-block-central
+        storageClassName: rook-ceph-block
     resources:
       limits:
         cpu: "2"
@@ -109,50 +109,26 @@ jupyterhub:
       blockWithIptables: false
     networkPolicy:
       enabled: false
-#    commenting out because the volume is not ready when init container starts
     initContainers:
-    - name: volume-permissions
-      image: busybox
-      command: ["sh", "-c", "chmod 777 /srv/starter_content/_Shared-Storage_"]
-      volumeMounts:
-      - mountPath: /srv/starter_content/_Shared-Storage_
-        name: volume-shared-pvc
     - name: volume-permissions2
       image: busybox
-      command: [ "sh", "-c", "chmod 777 /srv/starter_content/_User-Persistent-Storage_New" ]
+      command: [ "sh", "-c", "chmod 777 /srv/starter_content/_User-Persistent-Storage_CephFS_" ]
       volumeMounts:
-        - mountPath: /srv/starter_content/_User-Persistent-Storage_New
-          name: volume-new-{username}
-#    - name: dataset-download
-#      image: busybox
-#      env:
-#        - name: DATASET_ID
-#          value: "uniform-ensemble"
-#      volumeMounts:
-#        - name: dataset-data
-#          mountPath: /srv/starter_content/dataset  # The path where files will be downloaded
-
+        - mountPath: /srv/starter_content/_User-Persistent-Storage_CephFS_
+          name: volume-ceph-{username}
     storage:
       extraLabels: {}
-      extraVolumes:
-        - name: volume-shared-pvc
-          persistentVolumeClaim:
-            claimName: shared-pvc
-      extraVolumeMounts:
-        - name: volume-shared-pvc
-          mountPath: /srv/starter_content/_Shared-Storage_
       capacity: 100Gi
-      homeMountPath: /srv/starter_content/_User-Persistent-Storage_New
+      homeMountPath: /srv/starter_content/_User-Persistent-Storage_CephFS_
       dynamic:
         storageClass: rook-cephfs
-        pvcNameTemplate: claim-new-{username}
-        volumeNameTemplate: volume-new-{username}
+        pvcNameTemplate: claim-ceph-{username}
+        volumeNameTemplate: volume-ceph-{username}
         storageAccessModes: [ReadWriteMany]
 
     image:
       name: gitlab-registry.nrp-nautilus.io/ndp/ndp-docker-images/jhub-spawn
-#      tag: custom_v0.6
-      tag: dataset_0.1.38
+      tag: minimal_0.0.9
     startTimeout: 1200
     cpu:
       limit: 3
