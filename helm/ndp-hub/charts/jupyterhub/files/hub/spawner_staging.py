@@ -6,7 +6,7 @@ from oauthenticator.generic import GenericOAuthenticator
 from secrets import token_hex
 import copy
 
-CLIENT_ID = 'jupyterhub_test'
+CLIENT_ID = 'jupyterhub_staging'
 CLIENT_SECRET = ""
 KEYCLOAK_URL = "https://idp-test.nationaldataplatform.org"
 
@@ -340,7 +340,7 @@ class MySpawner(KubeSpawner):
 
 c.JupyterHub.template_paths = ['/etc/jupyterhub/custom']
 c.JupyterHub.spawner_class = MySpawner
-c.JupyterHub.allow_named_servers = True
+c.JupyterHub.allow_named_servers = False
 c.MySpawner.profile_list = copy.deepcopy(original_profile_list)
 
 
@@ -421,7 +421,7 @@ def pre_spawn_hook(spawner):
     # pip install jupyterlab-launchpad
     git_creds_command = f"mkdir -p /srv/starter_content/{USER_PERSISTENT_STORAGE_FOLDER}/.git"
     git_creds_command2 = f'git config --global credential.helper "store --file=/srv/starter_content/{USER_PERSISTENT_STORAGE_FOLDER}/.git/.git-credentials"'
-    pip_install_command = ("pip install jupyterlab-git ndp-jupyterlab-extension --index-url "
+    pip_install_command = ("pip install jupyterlab-git ndp-jupyterlab-extension==0.1.47 --index-url "
                            "https://gitlab.nrp-nautilus.io/api/v4/projects/4145/packages/pypi/simple")
 
     # Modify the spawner's start command to include the pip install
