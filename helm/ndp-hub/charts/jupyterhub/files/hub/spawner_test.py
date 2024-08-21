@@ -340,7 +340,7 @@ class MySpawner(KubeSpawner):
 
 c.JupyterHub.template_paths = ['/etc/jupyterhub/custom']
 c.JupyterHub.spawner_class = MySpawner
-c.JupyterHub.allow_named_servers = True
+c.JupyterHub.allow_named_servers = False
 c.MySpawner.profile_list = copy.deepcopy(original_profile_list)
 
 
@@ -435,11 +435,6 @@ def pre_spawn_hook(spawner):
     # make username available for MLflow library
     username = spawner.user.name
     spawner.environment.update({'MLFLOW_TRACKING_USERNAME': username})
-
-    spawner.environment.update({"KEYCLOAK_URL": KEYCLOAK_URL})
-    spawner.environment.update({"KEYCLOAK_CLIENT_ID": CLIENT_ID})
-    spawner.environment.update({"KEYCLOAK_CLIENT_SECRET": CLIENT_SECRET})
-    spawner.environment.update({"KEYCLOAK_REALM": "NDP"})
     spawner.environment.update({"CKAN_API_URL": CKAN_API_URL})
     spawner.environment.update({"WORKSPACE_API_URL": WORKSPACE_API_URL})
 
