@@ -5,6 +5,7 @@ import logging
 from oauthenticator.generic import GenericOAuthenticator
 from secrets import token_hex
 import copy
+import os
 
 CLIENT_ID = 'jupyterhub_staging'
 CLIENT_SECRET = ""
@@ -23,6 +24,7 @@ aws_bucket_name = 'mlflow'
 CKAN_API_URL = "https://ndp-staging.sdsc.edu/catalog/api/3/action/"
 WORKSPACE_API_URL = "https://ndp-staging.sdsc.edu/workspaces-api"
 
+os.environ['JUPYTERHUB_CRYPT_KEY'] = token_hex(32)
 
 original_profile_list = [
     {
@@ -338,12 +340,6 @@ class MySpawner(KubeSpawner):
         return options
 
 
-c.JupyterHub.template_paths = ['/etc/jupyterhub/custom']
-c.JupyterHub.spawner_class = MySpawner
-c.JupyterHub.allow_named_servers = False
-c.MySpawner.profile_list = copy.deepcopy(original_profile_list)
-
-
 class MyAuthenticator(GenericOAuthenticator):
     async def pre_spawn_start(self, user, spawner):
         refresh_user_result = await self.refresh_user(user)
@@ -381,36 +377,12 @@ class MyAuthenticator(GenericOAuthenticator):
         else:
             return False
 
-
-c.JupyterHub.authenticator_class = MyAuthenticator
-c.MyAuthenticator.auth_refresh_age = 120
-c.MyAuthenticator.refresh_pre_spawn = True
-
-os.environ['JUPYTERHUB_CRYPT_KEY'] = token_hex(32)
-
-c.MySpawner.environment = {
-    'AWS_ACCESS_KEY_ID': aws_access_key_id,
-    'AWS_SECRET_ACCESS_KEY': aws_secret_access_key,
-    'MLFLOW_TRACKING_URI': mlflow_tracking_uri,
-    'MLFLOW_S3_ENDPOINT_URL': mlflow_s3_endpoint_url,
-    'MLFLOW_TRACKING_PASSWORD': mlflow_default_user_password,
-    'AWS_BUCKET_NAME': aws_bucket_name,
-    'GIT_PYTHON_REFRESH': 'quiet',
-}
-# Remove containers once they are stopped
-c.MySpawner.remove = True
-
-
 # pass access_token and refresh_token for communicating with NDP APIs
 def auth_state_hook(spawner, auth_state):
     spawner.access_token = auth_state['access_token']
     spawner.refresh_token = auth_state['refresh_token']
     spawner.environment.update({'ACCESS_TOKEN': spawner.access_token})
     spawner.environment.update({'REFRESH_TOKEN': spawner.refresh_token})
-
-
-c.MySpawner.auth_state_hook = auth_state_hook
-
 
 #
 def pre_spawn_hook(spawner):
@@ -421,7 +393,7 @@ def pre_spawn_hook(spawner):
     # pip install jupyterlab-launchpad
     git_creds_command = f"mkdir -p /srv/starter_content/{USER_PERSISTENT_STORAGE_FOLDER}/.git"
     git_creds_command2 = f'git config --global credential.helper "store --file=/srv/starter_content/{USER_PERSISTENT_STORAGE_FOLDER}/.git/.git-credentials"'
-    pip_install_command = ("pip install jupyterlab-git ndp-jupyterlab-extension==0.1.47 --index-url "
+    pip_install_command = ("pip install jupyterlab-git ndp-jupyterlab-extension==0.1.52 --index-url "
                            "https://gitlab.nrp-nautilus.io/api/v4/projects/4145/packages/pypi/simple")
 
     # Modify the spawner's start command to include the pip install
@@ -435,11 +407,6 @@ def pre_spawn_hook(spawner):
     # make username available for MLflow library
     username = spawner.user.name
     spawner.environment.update({'MLFLOW_TRACKING_USERNAME': username})
-
-    spawner.environment.update({"KEYCLOAK_URL": KEYCLOAK_URL})
-    spawner.environment.update({"KEYCLOAK_CLIENT_ID": CLIENT_ID})
-    spawner.environment.update({"KEYCLOAK_CLIENT_SECRET": CLIENT_SECRET})
-    spawner.environment.update({"KEYCLOAK_REALM": "NDP"})
     spawner.environment.update({"CKAN_API_URL": CKAN_API_URL})
     spawner.environment.update({"WORKSPACE_API_URL": WORKSPACE_API_URL})
 
@@ -466,5 +433,26 @@ def pre_spawn_hook(spawner):
         logging.info(f'MLFlow Connection error, check that MLFlow service is not down.')
 
 
+c.JupyterHub.template_paths = ['/etc/jupyterhub/custom']
+c.JupyterHub.spawner_class = MySpawner
+c.JupyterHub.allow_named_servers = False
+c.JupyterHub.authenticator_class = MyAuthenticator
+
+c.MyAuthenticator.auth_refresh_age = 120
+c.MyAuthenticator.refresh_pre_spawn = True
+
+
+c.MySpawner.environment = {
+    'AWS_ACCESS_KEY_ID': aws_access_key_id,
+    'AWS_SECRET_ACCESS_KEY': aws_secret_access_key,
+    'MLFLOW_TRACKING_URI': mlflow_tracking_uri,
+    'MLFLOW_S3_ENDPOINT_URL': mlflow_s3_endpoint_url,
+    'MLFLOW_TRACKING_PASSWORD': mlflow_default_user_password,
+    'AWS_BUCKET_NAME': aws_bucket_name,
+    'GIT_PYTHON_REFRESH': 'quiet',
+}
 c.MySpawner.pre_spawn_hook = pre_spawn_hook
 c.MySpawner.http_timeout = 1200
+c.MySpawner.auth_state_hook = auth_state_hook
+# c.MySpawner.remove = True  # Remove containers once they are stopped
+c.MySpawner.profile_list = copy.deepcopy(original_profile_list)

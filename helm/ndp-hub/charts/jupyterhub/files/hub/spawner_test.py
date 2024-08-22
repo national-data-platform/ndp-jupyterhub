@@ -368,7 +368,7 @@ class MyAuthenticator(GenericOAuthenticator):
                                      'client_id': CLIENT_ID,
                                      'client_secret': CLIENT_SECRET
                                  })
-        print(response.json())
+
         if response.status_code == 200:
             new_token = response.json().get('access_token')
             auth_state['access_token'] = new_token
