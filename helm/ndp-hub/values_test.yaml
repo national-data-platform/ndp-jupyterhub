@@ -16,8 +16,8 @@ jupyterhub:
         token_url: https://idp-test.nationaldataplatform.org/realms/NDP/protocol/openid-connect/token
         userdata_url: https://idp-test.nationaldataplatform.org/realms/NDP/protocol/openid-connect/userinfo
         logout_redirect_url: https://idp-test.nationaldataplatform.org/realms/NDP/protocol/openid-connect/logout?redirect_uri=https://ndp-test-jupyterhub.nrp-nautilus.io/
-        auth_refresh_age: 120  # Refresh auth state every 2 minutes
-        refresh_pre_spawn: True  # Refresh auth state before spawning
+#        auth_refresh_age: 120  # Refresh auth state every 2 minutes
+#        refresh_pre_spawn: True  # Refresh auth state before spawning
 
         login_service: keycloak
         username_claim: email
