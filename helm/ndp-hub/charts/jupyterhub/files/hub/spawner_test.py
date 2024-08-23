@@ -341,39 +341,72 @@ class MySpawner(KubeSpawner):
 
 
 class MyAuthenticator(GenericOAuthenticator):
-    async def pre_spawn_start(self, user, spawner):
-        refresh_user_result = await self.refresh_user(user)
-        print('Refresh User Result:', refresh_user_result)
-
-    async def refresh_user(self, user, handler=None):
+    async def refresh_user(self, user, handler):
+        """
+        Will allow to a=start spawning, if access_token/refresh_token are updated, or redirect to logout otherwise
+        :param user:
+        :param handler:
+        :return:
+        """
+        print(f'Handler: {handler}')
 
         print(f"Refreshing Authenticator refresh_user for {user.name}")
         auth_state = await user.get_auth_state()
         print(auth_state)
         if auth_state:
-            refresh_token = auth_state.get('refresh_token')
-
-            if not self.check_and_refresh_token(refresh_token, auth_state):
+            if not await self.check_and_refresh_tokens(user, auth_state):
                 if handler:
+                    print(f'Redirecting to logout')
+                    handler.redirect('/hub/logout')
+                    print(f'Redirected to logout')
                     return False
                 return False
         return True
 
-    def check_and_refresh_token(self, refresh_token, auth_state):
+    async def check_and_refresh_tokens(self, user, auth_state):
+        """
+        Will set new access_token and refresh_token into auth_state and return True, if refresh is possible,
+        or will return False otherwise
+        :param user:
+        :param auth_state:
+        :return:
+        """
+        refresh_token_valid = self.check_refresh_token_keycloak(auth_state)
+        print(f'refresh_token_valid: {refresh_token_valid}')
+        if refresh_token_valid:
+            # here we need to refresh access_token
+            print('Trying to refresh access_token')
+            auth_state['access_token'], auth_state['refresh_token']  = refresh_token_valid
+            await user.save_auth_state(auth_state)
+            print(f"Updated auth_state saved for {user.name}")
+            return True
+        else:
+            return False
+
+
+
+    def check_refresh_token_keycloak(self, auth_state):
+        """
+        Will return tuple of access_token and refresh_token if refresh is possible, or False otherwise
+        :param auth_state:
+        :return:
+        """
+        _access_token = auth_state.get('access_token')
+        _refresh_token = auth_state.get('refresh_token')
         print(f"Checking refresh_token")
         response = requests.post(f"{KEYCLOAK_URL}/realms/NDP/protocol/openid-connect/token",
                                  data={
                                      'grant_type': 'refresh_token',
-                                     'refresh_token': refresh_token,
+                                     'refresh_token': _refresh_token,
                                      'client_id': CLIENT_ID,
                                      'client_secret': CLIENT_SECRET
                                  })
 
         if response.status_code == 200:
-            new_token = response.json().get('access_token')
-            auth_state['access_token'] = new_token
-            auth_state['refresh_token'] = refresh_token  # Refresh token typically doesn't change
-            return True
+            print(f"Refresh token is still good!")
+            new_access_token = response.json().get('access_token')
+            new_refresh_token = response.json().get('refresh_token')
+            return new_access_token, new_refresh_token
         else:
             return False
 
@@ -438,7 +471,8 @@ c.JupyterHub.spawner_class = MySpawner
 c.JupyterHub.allow_named_servers = False
 c.JupyterHub.authenticator_class = MyAuthenticator
 
-c.MyAuthenticator.auth_refresh_age = 120
+# check only once per day not to block single-user
+c.MyAuthenticator.auth_refresh_age = 86300
 c.MyAuthenticator.refresh_pre_spawn = True
 
 
