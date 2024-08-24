@@ -357,6 +357,8 @@ class MyAuthenticator(GenericOAuthenticator):
             if not await self.check_and_refresh_tokens(user, auth_state):
                 if handler:
                     print(f'Redirecting to logout')
+                    handler.clear_cookie("jupyterhub-hub-login")
+                    handler.clear_cookie("jupyterhub-session-id")
                     handler.redirect('/hub/logout')
                     print(f'Redirected to logout')
                     return False

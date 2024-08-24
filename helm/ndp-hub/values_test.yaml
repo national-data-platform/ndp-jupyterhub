@@ -5,6 +5,7 @@
 # Install from ./helm folder: helm upgrade --cleanup-on-fail --install ndp-hub ndp-hub --kube-context nautilus --namespace ndp-test --values ndp-hub/values_test.yaml
 # Uninstall: helm uninstall ndp-hub --kube-context nautilus --namespace ndp-test
 # URL: ndp-test-jupyterhub.nrp-nautilus.io
+
 jupyterhub:
   hub:
     existingSecret: jupyterhub-secret
