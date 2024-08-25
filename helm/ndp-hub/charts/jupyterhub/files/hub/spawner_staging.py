@@ -10,6 +10,7 @@ import os
 CLIENT_ID = 'jupyterhub_staging'
 CLIENT_SECRET = ""
 KEYCLOAK_URL = "https://idp-test.nationaldataplatform.org"
+NDP_EXT_VERSION = '0.1.57'
 
 USER_PERSISTENT_STORAGE_FOLDER = "_User-Persistent-Storage_CephFS_"
 
@@ -428,7 +429,7 @@ def pre_spawn_hook(spawner):
     # pip install jupyterlab-launchpad
     git_creds_command = f"mkdir -p /srv/starter_content/{USER_PERSISTENT_STORAGE_FOLDER}/.git"
     git_creds_command2 = f'git config --global credential.helper "store --file=/srv/starter_content/{USER_PERSISTENT_STORAGE_FOLDER}/.git/.git-credentials"'
-    pip_install_command = ("pip install jupyterlab-git ndp-jupyterlab-extension==0.1.55 --index-url "
+    pip_install_command = (f"pip install jupyterlab-git ndp-jupyterlab-extension=={NDP_EXT_VERSION} --index-url "
                            "https://gitlab.nrp-nautilus.io/api/v4/projects/4145/packages/pypi/simple")
 
     # Modify the spawner's start command to include the pip install
