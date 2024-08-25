@@ -6,9 +6,25 @@ from oauthenticator.generic import GenericOAuthenticator
 from secrets import token_hex
 import copy
 import os
+import base64
 
+def use_k8s_secret(namespace, secret_name):
+    from kubernetes import client, config
+    config.load_incluster_config()
+    v1 = client.CoreV1Api()
+
+    # get secret values
+    secret = v1.read_namespaced_secret(name=secret_name, namespace=namespace)
+    secret_data = secret.data
+    value = base64.b64decode(secret_data['values.yaml']).decode('utf-8')  # extract string from k8s secret
+    splitted = value.split('client_secret: ')[1]  # isolate cliect_secret_value
+    client_secret = splitted[:-1]  # cut \n
+    return client_secret
+
+NAMESPACE = 'ndp-test'
 CLIENT_ID = 'jupyterhub_test'
 CLIENT_SECRET = ""
+# CLIENT_SECRET = use_k8s_secret(namespace=NAMESPACE, secret_name='jupyterhub-secret')
 KEYCLOAK_URL = "https://idp-test.nationaldataplatform.org"
 
 USER_PERSISTENT_STORAGE_FOLDER = "_User-Persistent-Storage_CephFS_"

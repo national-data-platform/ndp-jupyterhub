@@ -7,6 +7,7 @@ FROM jupyterhub/k8s-hub:2.0.0
 
 #RUN mkdir -p /templates
 #COPY templates/* /templates/
+RUN pip install kubernetes
 
 COPY images/ndp_logo.png /usr/local/share/jupyterhub/static/images/ndp_logo.png
 COPY images/ndp-landing-image.png /usr/local/share/jupyterhub/static/images/ndp-landing-image.png
