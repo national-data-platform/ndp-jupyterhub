@@ -77,7 +77,7 @@ original_profile_list = [
         'slug': "4",
         'default': False,
         'kubespawner_override': {
-            'image': 'gitlab-registry.nrp-nautilus.io/ndp/ndp-docker-images/jhub-spawn:earthscope_v0.2.4.2',
+            'image': 'gitlab-registry.nrp-nautilus.io/ndp/ndp-docker-images/jhub-spawn:earthscope_v0.2.4.3',
         }
     },
     {
