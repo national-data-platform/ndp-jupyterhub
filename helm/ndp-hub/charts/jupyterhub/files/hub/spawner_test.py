@@ -23,8 +23,8 @@ def use_k8s_secret(namespace, secret_name):
 
 NAMESPACE = 'ndp-test'
 CLIENT_ID = 'jupyterhub_test'
-CLIENT_SECRET = ""
-# CLIENT_SECRET = use_k8s_secret(namespace=NAMESPACE, secret_name='jupyterhub-secret')
+# CLIENT_SECRET = ""
+CLIENT_SECRET = use_k8s_secret(namespace=NAMESPACE, secret_name='jupyterhub-secret')
 KEYCLOAK_URL = "https://idp-test.nationaldataplatform.org"
 
 USER_PERSISTENT_STORAGE_FOLDER = "_User-Persistent-Storage_CephFS_"
@@ -47,6 +47,14 @@ original_profile_list = [
         'display_name': "Minimal NDP Starter Jupyter Lab",
         'default': True,
         'slug': "1",
+    },
+    {
+        'display_name': "NDP Catalog Search",
+        'default': False,
+        'slug': "10",
+        'kubespawner_override': {
+            'image': 'gitlab-registry.nrp-nautilus.io/ndp/ndp-docker-images/jhub-spawn:custom_v0.6',
+        }
     },
     {
         'display_name': "Physics Guided Machine Learning Starter Code",
