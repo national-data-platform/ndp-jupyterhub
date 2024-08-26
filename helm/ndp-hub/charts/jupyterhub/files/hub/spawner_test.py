@@ -53,7 +53,7 @@ original_profile_list = [
         'default': False,
         'slug': "10",
         'kubespawner_override': {
-            'image': 'gitlab-registry.nrp-nautilus.io/ndp/ndp-docker-images/jhub-spawn:custom_v0.6',
+            'image': 'gitlab-registry.nrp-nautilus.io/ndp/ndp-docker-images/jhub-spawn:catalog_search_v0.9',
         }
     },
     {
@@ -123,7 +123,7 @@ original_profile_list = [
 ]
 
 class MySpawner(KubeSpawner):
-    notebook_dir = '/srv/starter_content'
+    notebook_dir = '/home/jovyan/work'
     profile_form_template = """
 
 
@@ -212,7 +212,7 @@ class MySpawner(KubeSpawner):
 
                     <b><i>Note:</b> Please stop your server after it is no longer needed, or in case you want to launch different content image
                     <p style="color:green;">In order to stop the server from running Jupyter Lab, go to File > Hub Control Panel > Stop Server</i></p>
-                    <p><i><b>Note:</b> ./_User-Persistent-Storage_CephFS_ is the persistent volume directory, make sure to save your work in it, otherwise it will be deleted</p>
+                    <p><i><b>Note:</b> /home/jovyan/work/_User-Persistent-Storage_CephFS_ is the persistent volume directory, make sure to save your work in it, otherwise it will be deleted</p>
                     """
 
     def options_from_form(self, formdata):
@@ -327,7 +327,7 @@ class MySpawner(KubeSpawner):
         self.volume_mounts = [
             {
                 'name': 'volume-ceph-{username}',
-                'mountPath': f'/srv/starter_content/{USER_PERSISTENT_STORAGE_FOLDER}',
+                'mountPath': f'/home/jovyan/work/{USER_PERSISTENT_STORAGE_FOLDER}',
             }
         ]
         self.volumes = [
@@ -450,8 +450,8 @@ def pre_spawn_hook(spawner):
     spawner._profile_list = copy.deepcopy(original_profile_list)
 
     # pip install jupyterlab-launchpad
-    git_creds_command = f"mkdir -p /srv/starter_content/{USER_PERSISTENT_STORAGE_FOLDER}/.git"
-    git_creds_command2 = f'git config --global credential.helper "store --file=/srv/starter_content/{USER_PERSISTENT_STORAGE_FOLDER}/.git/.git-credentials"'
+    git_creds_command = f"mkdir -p /home/jovyan/work/{USER_PERSISTENT_STORAGE_FOLDER}/.git"
+    git_creds_command2 = f'git config --global credential.helper "store --file=/home/jovyan/work/{USER_PERSISTENT_STORAGE_FOLDER}/.git/.git-credentials"'
     pip_install_command = ("pip install jupyterlab-git ndp-jupyterlab-extension --index-url "
                            "https://gitlab.nrp-nautilus.io/api/v4/projects/4145/packages/pypi/simple")
 
