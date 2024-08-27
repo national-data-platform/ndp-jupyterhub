@@ -1,0 +1,5 @@
+FROM gitlab-registry.nrp-nautilus.io/ndp/ndp-docker-images/jhub-spawn:tls_class_0.0.0.4
+WORKDIR /home/jovyan/work
+RUN mv /srv/starter_content/SQN .
+
+# docker build ./images -f ./images/Dockerfile_tls -t gitlab-registry.nrp-nautilus.io/ndp/ndp-docker-images/jhub-spawn:tls_class_0.0.0.5 --platform=linux/amd64
