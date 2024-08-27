@@ -437,7 +437,7 @@ def pre_spawn_hook(spawner):
     spawner.cmd = [
         "bash",
         "-c",
-        f"{git_creds_command} && {git_creds_command2} && {pip_install_command} && exec {' '.join(original_cmd)}"
+        f"{git_creds_command} && {git_creds_command2} && {pip_install_command} || true && exec {' '.join(original_cmd)}"
     ]
 
     # make username available for MLflow library
