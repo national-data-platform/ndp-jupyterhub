@@ -62,3 +62,61 @@ RUN mv /srv/starter_content/hls-foundation-os .
 
 
 # docker build ./jhub/images -f ./jhub/images/Dockerfile_nairr -t gitlab-registry.nrp-nautilus.io/ndp/ndp-docker-images/jhub-spawn:nair_v0.0.0.11 --platform=linux/amd64 --no-cache
+
+
+
+#FROM quay.io/jupyter/base-notebook:latest
+#
+## Create a new conda environment named 'myenv' with Python 3.9
+#RUN conda create -n myenv python=3.9 ipykernel --yes
+## Initialize the new environment to be found by Jupyter
+#RUN /bin/bash -c "source activate myenv && \
+#    python -m ipykernel install --user --name myenv --display-name 'Python 3.9 (myenv)'"
+#SHELL ["conda", "run", "-n", "myenv", "/bin/bash", "-c"]
+#RUN python --version
+#RUN echo "conda activate myenv" >> ~/.bashrc
+#
+##WORKDIR /srv
+#WORKDIR /home/jovyan/work
+#USER root
+#
+#RUN apt-get update && apt-get install -y \
+#    git gnupg2 software-properties-common curl
+#
+#RUN curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | sudo bash
+#RUN sudo apt-get install git-lfs
+#
+## M1 support
+#ARG TARGETPLATFORM
+#RUN if [ "$TARGETPLATFORM" = "linux/arm64" ]; then conda install -y gcc gxx_linux-64; fi
+#
+#RUN wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64/cuda-keyring_1.1-1_all.deb
+#RUN wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64/cuda-keyring_1.1-1_all.deb && sudo dpkg -i cuda-keyring_1.1-1_all.deb && apt-get update && apt-get -y install cuda-toolkit-12-3
+#RUN sudo apt-get update
+#RUN sudo apt-get -y install cuda-toolkit-12-3
+#
+#RUN git clone https://github.com/NASA-IMPACT/hls-foundation-os
+#RUN cd hls-foundation-os && pip install -e .
+#RUN pip install pytorch==1.11.0 torchvision==0.12.0 torchaudio==0.11.0 -c pytorch
+#RUN pip install -U openmim
+#RUN pip install numpy==1.22.4
+#RUN mim install mmcv-full==1.6.2
+#RUN pip install huggingface_hub
+#
+## Make sure you have git-lfs installed (https://git-lfs.com)
+#RUN git lfs install
+#WORKDIR /home/jovyan/work
+#RUN git clone https://huggingface.co/ibm-nasa-geospatial/Prithvi-100M
+## rename to a valid python module name
+#RUN mv Prithvi-100M prithvi
+#
+#RUN git clone https://github.com/national-data-platform/jupyter-notebooks
+#RUN cd jupyter-notebooks/nairr && ls
+#RUN mv ./jupyter-notebooks/nairr/exploration.ipynb  ./hls-foundation-os/
+#RUN mv ./jupyter-notebooks/nairr/burn_scars.py  ./hls-foundation-os/configs/
+#RUN mv ./jupyter-notebooks/nairr/pics  ./hls-foundation-os/
+#RUN rm -rf jupyter-notebooks
+#
+#RUN chown -R jovyan .
+#
+#USER jovyan
