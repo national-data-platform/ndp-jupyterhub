@@ -9,7 +9,7 @@ RUN apt-get update && apt-get install -y \
 
 RUN chmod a+x /usr/bin/git
 
-RUN chown -R jovyan /.
+RUN chown -R jovyan /home/jovyan
 
 # make sudo access without password
 RUN echo 'jovyan ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers
