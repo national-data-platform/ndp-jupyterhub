@@ -11,8 +11,6 @@ RUN git clone https://github.com/national-data-platform/jupyter-notebooks
 
 RUN pip install -r ./jupyter-notebooks/nasa/requirements.txt
 
-# RUN mkdir ./starter_content/
-
 RUN cp -R ./jupyter-notebooks/nasa/. .
 RUN rm -rf ./jupyter-notebooks
 
@@ -20,4 +18,4 @@ RUN chown -R jovyan ./
 
 USER jovyan
 
-# docker build ./jhub/images -f ./jhub/images/Dockerfile_nasa -t gitlab-registry.nrp-nautilus.io/ndp/ndp-docker-images/jhub-spawn:nasa_v0.1.0.0 --platform=linux/amd64 --no-cache
+# docker build ./images -f ./images/Dockerfile_nasa -t gitlab-registry.nrp-nautilus.io/ndp/ndp-docker-images/jhub-spawn:nasa_v0.1.0.0 --platform=linux/amd64 --no-cache

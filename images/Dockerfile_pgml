@@ -15,8 +15,6 @@ RUN if [ "$TARGETPLATFORM" = "linux/arm64" ]; then conda install -y gcc gxx_linu
 
 RUN pip install -r ./jupyter-notebooks/pgml/requirements.txt
 
-#RUN mkdir /srv/starter_content/
-
 RUN cp -R ./jupyter-notebooks/pgml/. .
 RUN rm -rf ./jupyter-notebooks
 

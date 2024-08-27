@@ -138,7 +138,7 @@ jupyterhub:
 
     image:
       name: gitlab-registry.nrp-nautilus.io/ndp/ndp-docker-images/jhub-spawn
-      tag: minimal_0.0.9
+      tag: minimal_0.0.10
     startTimeout: 1200
     cpu:
       limit: 3

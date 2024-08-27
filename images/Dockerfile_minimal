@@ -1,6 +1,6 @@
 FROM quay.io/jupyter/base-notebook:latest
 
-WORKDIR /srv/starter_content
+WORKDIR /home/jovyan/work
 
 USER root
 
@@ -9,7 +9,7 @@ RUN apt-get update && apt-get install -y \
 
 RUN chmod a+x /usr/bin/git
 
-RUN chown -R jovyan /srv/starter_content/
+RUN chown -R jovyan /.
 
 # make sudo access without password
 RUN echo 'jovyan ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers
@@ -23,4 +23,4 @@ RUN pip install --upgrade jupyterlab==4.2.4
 
 USER jovyan
 
-# docker build ./images/download_dataset -f ./images/download_dataset/Dockerfile -t gitlab-registry.nrp-nautilus.io/ndp/ndp-docker-images/jhub-spawn:minimal_0.0.9 --platform=linux/amd64 --no-cache
+# docker build ./images -f ./images/Dockerfile_minimal -t gitlab-registry.nrp-nautilus.io/ndp/ndp-docker-images/jhub-spawn:minimal_0.0.10 --platform=linux/amd64 --no-cache

@@ -1,6 +1,5 @@
 FROM quay.io/jupyter/base-notebook:latest
 
-#WORKDIR /srv
 WORKDIR /home/jovyan/work
 
 USER root
@@ -14,12 +13,8 @@ RUN git clone https://github.com/national-data-platform/jupyter-notebooks
 
 RUN pip install -r ./jupyter-notebooks/minimal_starter_content/requirements.txt
 
-RUN #mkdir /srv/starter_content/
-
 RUN cp -R ./jupyter-notebooks/minimal_starter_content/. .
 RUN rm -rf ./jupyter-notebooks
-
-# RUN chown -R jovyan /srv/starter_content/
 
 # make sudo access without password
 RUN echo 'jovyan ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers
