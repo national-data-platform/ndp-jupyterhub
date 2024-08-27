@@ -85,7 +85,7 @@ original_profile_list = [
         'slug': "5",
         'default': False,
         'kubespawner_override': {
-            'image': 'gitlab-registry.nrp-nautilus.io/ndp/ndp-docker-images/jhub-spawn:nair_v0.0.0.16',
+            'image': 'gitlab-registry.nrp-nautilus.io/ndp/ndp-docker-images/jhub-spawn:nair_v0.0.0.17',
         }
     },
     {
@@ -337,10 +337,10 @@ class MySpawner(KubeSpawner):
                     'claimName': 'claim-ceph-{username}'
                 }
             },
-            {
-                'name': 'config-volume',
-                'emptyDir': {}
-            },
+            # {
+            #     'name': 'config-volume',
+            #     'emptyDir': {}
+            # },
         ]
 
         if formdata.get('shm', [0])[0]:

@@ -56,7 +56,10 @@
 #USER jovyan
 
 # Use older image as a base, because something is going on with the libraries now
-FROM gitlab-registry.nrp-nautilus.io/ndp/ndp-docker-images/jhub-spawn:nair_v0.0.0.12
+FROM gitlab-registry.nrp-nautilus.io/ndp/ndp-docker-images/jhub-spawn:nair_v0.0.0.16
 WORKDIR /home/jovyan/work
 RUN cp -r /srv/starter_content/hls-foundation-os .
+COPY burn_scars.py ./hls-foundation-os/configs/
 USER jovyan
+
+# docker build ./images -f ./images/Dockerfile_nairr -t gitlab-registry.nrp-nautilus.io/ndp/ndp-docker-images/jhub-spawn:nair_v0.0.0.17 --platform=linux/amd64 --no-cache
