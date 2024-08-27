@@ -69,7 +69,7 @@ original_profile_list = [
         'slug': "3",
         'default': False,
         'kubespawner_override': {
-            'image': 'gitlab-registry.nrp-nautilus.io/ndp/ndp-docker-images/jhub-spawn:sage_v0.2.1.4',
+            'image': 'gitlab-registry.nrp-nautilus.io/ndp/ndp-docker-images/jhub-spawn:sage_v0.2.1.6',
         }
     },
     {
@@ -101,7 +101,7 @@ original_profile_list = [
         'slug': "7",
         'default': False,
         'kubespawner_override': {
-            'image': 'gitlab-registry.nrp-nautilus.io/ndp/ndp-docker-images/jhub-spawn:llm_v0.0.0.11_small',
+            'image': 'gitlab-registry.nrp-nautilus.io/ndp/ndp-docker-images/jhub-spawn:llm_v0.0.0.13_small',
         }
     },
     {
@@ -109,7 +109,7 @@ original_profile_list = [
         'slug': "8",
         'default': False,
         'kubespawner_override': {
-            'image': 'gitlab-registry.nrp-nautilus.io/ndp/ndp-docker-images/jhub-spawn:tls_class_0.0.0.4',
+            'image': 'gitlab-registry.nrp-nautilus.io/ndp/ndp-docker-images/jhub-spawn:tls_class_0.0.0.5',
         }
     },
     {
@@ -336,7 +336,11 @@ class MySpawner(KubeSpawner):
                 'persistentVolumeClaim': {
                     'claimName': 'claim-ceph-{username}'
                 }
-            }
+            },
+            {
+                'name': 'config-volume',
+                'emptyDir': {}
+            },
         ]
 
         if formdata.get('shm', [0])[0]:
@@ -452,15 +456,15 @@ def pre_spawn_hook(spawner):
     # pip install jupyterlab-launchpad
     git_creds_command = f"mkdir -p /home/jovyan/work/{USER_PERSISTENT_STORAGE_FOLDER}/.git"
     git_creds_command2 = f'git config --global credential.helper "store --file=/home/jovyan/work/{USER_PERSISTENT_STORAGE_FOLDER}/.git/.git-credentials"'
-    pip_install_command = ("pip install jupyterlab-git ndp-jupyterlab-extension --index-url "
-                           "https://gitlab.nrp-nautilus.io/api/v4/projects/4145/packages/pypi/simple")
+    pip_install_command = ("pip install jupyterlab-git ndp-jupyterlab-extension==0.1.57 --index-url "
+                           "https://gitlab.nrp-nautilus.io/api/v4/projects/4145/packages/pypi/simple --user -qqq")
 
     # Modify the spawner's start command to include the pip install
     original_cmd = spawner.cmd or ["jupyterhub-singleuser"]
     spawner.cmd = [
         "bash",
         "-c",
-        f"{git_creds_command} && {git_creds_command2} && {pip_install_command} && exec {' '.join(original_cmd)}"
+        f"{git_creds_command} && {git_creds_command2} && {pip_install_command} || true && exec {' '.join(original_cmd)}"
     ]
 
     # make username available for MLflow library
@@ -494,7 +498,7 @@ def pre_spawn_hook(spawner):
 
 c.JupyterHub.template_paths = ['/etc/jupyterhub/custom']
 c.JupyterHub.spawner_class = MySpawner
-c.JupyterHub.allow_named_servers = False
+c.JupyterHub.allow_named_servers = True
 c.JupyterHub.authenticator_class = MyAuthenticator
 
 # check only once per day not to block single-user

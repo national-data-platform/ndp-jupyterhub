@@ -116,10 +116,16 @@ jupyterhub:
     initContainers:
     - name: volume-permissions
       image: busybox
-      command: ["sh", "-c", "chmod 777 /home/jovyan/work/_User-Persistent-Storage_CephFS_"]
+      command: ["sh", "-c", "chmod 777 -R /home/jovyan/work/_User-Persistent-Storage_CephFS_"]
       volumeMounts:
         - mountPath: /home/jovyan/work/_User-Persistent-Storage_CephFS_
           name: volume-ceph-{username}
+#    - name: fix-permissions
+#      image: busybox
+#      command: ["sh", "-c", "chmod -R 777 /home/jovyan/"]
+#      volumeMounts:
+#      - name: config-volume
+#        mountPath: /home/jovyan/
     storage:
       extraLabels: {}
       capacity: 100Gi
