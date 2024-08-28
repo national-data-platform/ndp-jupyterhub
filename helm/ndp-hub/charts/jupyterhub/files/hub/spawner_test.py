@@ -454,17 +454,26 @@ def pre_spawn_hook(spawner):
     spawner._profile_list = copy.deepcopy(original_profile_list)
 
     # pip install jupyterlab-launchpad
-    git_creds_command = f"mkdir -p /home/jovyan/work/{USER_PERSISTENT_STORAGE_FOLDER}/.git"
-    git_creds_command2 = f'git config --global credential.helper "store --file=/home/jovyan/work/{USER_PERSISTENT_STORAGE_FOLDER}/.git/.git-credentials"'
-    pip_install_command = ("pip install jupyterlab-git ndp-jupyterlab-extension==0.1.57 --index-url "
-                           "https://gitlab.nrp-nautilus.io/api/v4/projects/4145/packages/pypi/simple --user -qqq")
+    git_creds_command0 = f"mkdir -p /home/jovyan/work/{USER_PERSISTENT_STORAGE_FOLDER}/.git"
+    git_creds_command1 = f'git config --global credential.helper "store --file=/home/jovyan/work/{USER_PERSISTENT_STORAGE_FOLDER}/.git/.git-credentials"'
+    pip_install_command0 = ("pip uninstall jupyterlab-git -y")
+    pip_install_command1 = ("pip install --upgrade jupyterlab==4.2.4")
+    pip_install_command2 = ("pip install jupyterlab-git --index-url https://gitlab.nrp-nautilus.io/api/v4/projects/4145/packages/pypi/simple --user")
+    pip_install_command3 = ("pip install ndp-jupyterlab-extension==0.1.57 --index-url https://gitlab.nrp-nautilus.io/api/v4/projects/4145/packages/pypi/simple --user")
 
     # Modify the spawner's start command to include the pip install
     original_cmd = spawner.cmd or ["jupyterhub-singleuser"]
     spawner.cmd = [
         "bash",
         "-c",
-        f"{git_creds_command} && {git_creds_command2} && {pip_install_command} || true && exec {' '.join(original_cmd)}"
+        f"{git_creds_command0} "
+        f"&& {git_creds_command1} "
+        f"&& {pip_install_command0} || true "
+        f"&& {pip_install_command1} || true "
+        f"&& {pip_install_command2} || true "
+        f"&& {pip_install_command3} || true "
+        f"&& cd /home/jovyan/work || true "
+        f"&& exec {' '.join(original_cmd)}"
     ]
 
     # make username available for MLflow library
