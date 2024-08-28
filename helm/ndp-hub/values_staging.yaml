@@ -116,14 +116,14 @@ jupyterhub:
     initContainers:
     - name: volume-permissions
       image: busybox
-      command: ["sh", "-c", "chmod 777 /srv/starter_content/_User-Persistent-Storage_CephFS_"]
+      command: ["sh", "-c", "chmod 777 -R /home/jovyan/work/_User-Persistent-Storage_CephFS_"]
       volumeMounts:
-        - mountPath: /srv/starter_content/_User-Persistent-Storage_CephFS_
+        - mountPath: /home/jovyan/work/_User-Persistent-Storage_CephFS_
           name: volume-ceph-{username}
     storage:
       extraLabels: {}
       capacity: 100Gi
-      homeMountPath: /srv/starter_content/_User-Persistent-Storage_CephFS_
+      homeMountPath: /home/jovyan/work/_User-Persistent-Storage_CephFS_
       dynamic:
         storageClass: rook-cephfs
         pvcNameTemplate: claim-ceph-{username}
@@ -132,7 +132,7 @@ jupyterhub:
 
     image:
       name: gitlab-registry.nrp-nautilus.io/ndp/ndp-docker-images/jhub-spawn
-      tag: minimal_0.0.9
+      tag: minimal_0.0.10
     startTimeout: 1200
     cpu:
       limit: 3

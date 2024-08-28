@@ -120,12 +120,6 @@ jupyterhub:
       volumeMounts:
         - mountPath: /home/jovyan/work/_User-Persistent-Storage_CephFS_
           name: volume-ceph-{username}
-#    - name: fix-permissions
-#      image: busybox
-#      command: ["sh", "-c", "chmod -R 777 /home/jovyan/"]
-#      volumeMounts:
-#      - name: config-volume
-#        mountPath: /home/jovyan/
     storage:
       extraLabels: {}
       capacity: 100Gi

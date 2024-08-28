@@ -6,9 +6,25 @@ from oauthenticator.generic import GenericOAuthenticator
 from secrets import token_hex
 import copy
 import os
+import base64
 
+def use_k8s_secret(namespace, secret_name):
+    from kubernetes import client, config
+    config.load_incluster_config()
+    v1 = client.CoreV1Api()
+
+    # get secret values
+    secret = v1.read_namespaced_secret(name=secret_name, namespace=namespace)
+    secret_data = secret.data
+    value = base64.b64decode(secret_data['values.yaml']).decode('utf-8')  # extract string from k8s secret
+    splitted = value.split('client_secret: ')[1]  # isolate cliect_secret_value
+    client_secret = splitted[:-1]  # cut \n
+    return client_secret
+
+NAMESPACE = 'ndp-staging'
 CLIENT_ID = 'jupyterhub_staging'
-CLIENT_SECRET = ""
+# CLIENT_SECRET = ""
+CLIENT_SECRET = use_k8s_secret(namespace=NAMESPACE, secret_name='jupyterhub-secret')
 KEYCLOAK_URL = "https://idp-test.nationaldataplatform.org"
 NDP_EXT_VERSION = '0.1.57'
 
@@ -34,11 +50,19 @@ original_profile_list = [
         'slug': "1",
     },
     {
+        'display_name': "NDP Catalog Search",
+        'default': False,
+        'slug': "10",
+        'kubespawner_override': {
+            'image': 'gitlab-registry.nrp-nautilus.io/ndp/ndp-docker-images/jhub-spawn:catalog_search_v0.9',
+        }
+    },
+    {
         'display_name': "Physics Guided Machine Learning Starter Code",
         'slug': "2",
         'default': False,
         'kubespawner_override': {
-            'image': 'gitlab-registry.nrp-nautilus.io/ndp/ndp-docker-images/jhub-spawn:pgml_v0.1.7.2',
+            'image': 'gitlab-registry.nrp-nautilus.io/ndp/ndp-docker-images/jhub-spawn:pgml_v0.1.7.3',
         }
     },
     {
@@ -46,7 +70,7 @@ original_profile_list = [
         'slug': "3",
         'default': False,
         'kubespawner_override': {
-            'image': 'gitlab-registry.nrp-nautilus.io/ndp/ndp-docker-images/jhub-spawn:sage_v0.2.1.3',
+            'image': 'gitlab-registry.nrp-nautilus.io/ndp/ndp-docker-images/jhub-spawn:sage_v0.2.1.6',
         }
     },
     {
@@ -54,7 +78,7 @@ original_profile_list = [
         'slug': "4",
         'default': False,
         'kubespawner_override': {
-            'image': 'gitlab-registry.nrp-nautilus.io/ndp/ndp-docker-images/jhub-spawn:earthscope_v0.2.4.2',
+            'image': 'gitlab-registry.nrp-nautilus.io/ndp/ndp-docker-images/jhub-spawn:earthscope_v0.2.4.3',
         }
     },
     {
@@ -62,7 +86,7 @@ original_profile_list = [
         'slug': "5",
         'default': False,
         'kubespawner_override': {
-            'image': 'gitlab-registry.nrp-nautilus.io/ndp/ndp-docker-images/jhub-spawn:nair_v0.0.0.12',
+            'image': 'gitlab-registry.nrp-nautilus.io/ndp/ndp-docker-images/jhub-spawn:nair_v0.0.0.17',
         }
     },
     {
@@ -70,7 +94,7 @@ original_profile_list = [
         'slug': "6",
         'default': False,
         'kubespawner_override': {
-            'image': 'gitlab-registry.nrp-nautilus.io/ndp/ndp-docker-images/jhub-spawn:llm_v0.0.0.15_big',
+            'image': 'gitlab-registry.nrp-nautilus.io/ndp/ndp-docker-images/jhub-spawn:llm_v0.0.0.16_big',
         }
     },
     {
@@ -78,7 +102,7 @@ original_profile_list = [
         'slug': "7",
         'default': False,
         'kubespawner_override': {
-            'image': 'gitlab-registry.nrp-nautilus.io/ndp/ndp-docker-images/jhub-spawn:llm_v0.0.0.11_small',
+            'image': 'gitlab-registry.nrp-nautilus.io/ndp/ndp-docker-images/jhub-spawn:llm_v0.0.0.14_small',
         }
     },
     {
@@ -86,7 +110,7 @@ original_profile_list = [
         'slug': "8",
         'default': False,
         'kubespawner_override': {
-            'image': 'gitlab-registry.nrp-nautilus.io/ndp/ndp-docker-images/jhub-spawn:tls_class_0.0.0.4',
+            'image': 'gitlab-registry.nrp-nautilus.io/ndp/ndp-docker-images/jhub-spawn:tls_class_0.0.0.5',
         }
     },
     {
@@ -94,13 +118,13 @@ original_profile_list = [
         'slug': "9",
         'default': False,
         'kubespawner_override': {
-            'image': 'gitlab-registry.nrp-nautilus.io/ndp/ndp-docker-images/jhub-spawn:noaa_goes_v0.0.0.2',
+            'image': 'gitlab-registry.nrp-nautilus.io/ndp/ndp-docker-images/jhub-spawn:noaa_goes_v0.0.0.3',
         }
     },
 ]
 
 class MySpawner(KubeSpawner):
-    notebook_dir = '/srv/starter_content'
+    notebook_dir = '/home/jovyan/work'
     profile_form_template = """
 
 
@@ -189,7 +213,7 @@ class MySpawner(KubeSpawner):
 
                     <b><i>Note:</b> Please stop your server after it is no longer needed, or in case you want to launch different content image
                     <p style="color:green;">In order to stop the server from running Jupyter Lab, go to File > Hub Control Panel > Stop Server</i></p>
-                    <p><i><b>Note:</b> ./_User-Persistent-Storage_CephFS_ is the persistent volume directory, make sure to save your work in it, otherwise it will be deleted</p>
+                    <p><i><b>Note:</b> /home/jovyan/work/_User-Persistent-Storage_CephFS_ is the persistent volume directory, make sure to save your work in it, otherwise it will be deleted</p>
                     """
 
     def options_from_form(self, formdata):
@@ -236,10 +260,9 @@ class MySpawner(KubeSpawner):
                     else:
                         image = v["cpu"]
 
-                if not (":" in image):
-                    image += ":" + formdata.get('tag', [0])[0]
-                if not (":" in image):
-                    image += ":" + formdata.get('tag', [0])[0]
+                # if not (":" in image):
+                    # image += ":" + 'latest'
+                    # image += ":" + formdata.get('tag', [0])[0]
 
                 setattr(self, k, image)
 
@@ -304,7 +327,7 @@ class MySpawner(KubeSpawner):
         self.volume_mounts = [
             {
                 'name': 'volume-ceph-{username}',
-                'mountPath': f'/srv/starter_content/{USER_PERSISTENT_STORAGE_FOLDER}',
+                'mountPath': f'/home/jovyan/work/{USER_PERSISTENT_STORAGE_FOLDER}',
             }
         ]
         self.volumes = [
@@ -313,7 +336,11 @@ class MySpawner(KubeSpawner):
                 'persistentVolumeClaim': {
                     'claimName': 'claim-ceph-{username}'
                 }
-            }
+            },
+            # {
+            #     'name': 'config-volume',
+            #     'emptyDir': {}
+            # },
         ]
 
         if formdata.get('shm', [0])[0]:
@@ -427,17 +454,26 @@ def pre_spawn_hook(spawner):
     spawner._profile_list = copy.deepcopy(original_profile_list)
 
     # pip install jupyterlab-launchpad
-    git_creds_command = f"mkdir -p /srv/starter_content/{USER_PERSISTENT_STORAGE_FOLDER}/.git"
-    git_creds_command2 = f'git config --global credential.helper "store --file=/srv/starter_content/{USER_PERSISTENT_STORAGE_FOLDER}/.git/.git-credentials"'
-    pip_install_command = (f"pip install jupyterlab-git ndp-jupyterlab-extension=={NDP_EXT_VERSION} --index-url "
-                           "https://gitlab.nrp-nautilus.io/api/v4/projects/4145/packages/pypi/simple")
+    git_creds_command0 = f"mkdir -p /home/jovyan/work/{USER_PERSISTENT_STORAGE_FOLDER}/.git"
+    git_creds_command1 = f'git config --global credential.helper "store --file=/home/jovyan/work/{USER_PERSISTENT_STORAGE_FOLDER}/.git/.git-credentials"'
+    pip_install_command0 = ("pip uninstall jupyterlab-git -y")
+    pip_install_command1 = ("pip install --upgrade jupyterlab==4.2.4")
+    pip_install_command2 = ("pip install jupyterlab-git --index-url https://gitlab.nrp-nautilus.io/api/v4/projects/4145/packages/pypi/simple --user")
+    pip_install_command3 = (f"pip install ndp-jupyterlab-extension=={NDP_EXT_VERSION} --index-url https://gitlab.nrp-nautilus.io/api/v4/projects/4145/packages/pypi/simple --user")
 
     # Modify the spawner's start command to include the pip install
     original_cmd = spawner.cmd or ["jupyterhub-singleuser"]
     spawner.cmd = [
         "bash",
         "-c",
-        f"{git_creds_command} && {git_creds_command2} && {pip_install_command} || true && exec {' '.join(original_cmd)}"
+        f"{git_creds_command0} "
+        f"&& {git_creds_command1} "
+        f"&& {pip_install_command0} || true "
+        f"&& {pip_install_command1} || true "
+        f"&& {pip_install_command2} || true "
+        f"&& {pip_install_command3} || true "
+        f"&& cd /home/jovyan/work || true "
+        f"&& exec {' '.join(original_cmd)}"
     ]
 
     # make username available for MLflow library

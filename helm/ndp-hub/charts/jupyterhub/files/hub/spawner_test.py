@@ -26,6 +26,7 @@ CLIENT_ID = 'jupyterhub_test'
 # CLIENT_SECRET = ""
 CLIENT_SECRET = use_k8s_secret(namespace=NAMESPACE, secret_name='jupyterhub-secret')
 KEYCLOAK_URL = "https://idp-test.nationaldataplatform.org"
+# NDP_EXT_VERSION = '0.1.57'
 
 USER_PERSISTENT_STORAGE_FOLDER = "_User-Persistent-Storage_CephFS_"
 
@@ -458,7 +459,7 @@ def pre_spawn_hook(spawner):
     pip_install_command0 = ("pip uninstall jupyterlab-git -y")
     pip_install_command1 = ("pip install --upgrade jupyterlab==4.2.4")
     pip_install_command2 = ("pip install jupyterlab-git --index-url https://gitlab.nrp-nautilus.io/api/v4/projects/4145/packages/pypi/simple --user")
-    pip_install_command3 = ("pip install ndp-jupyterlab-extension==0.1.57 --index-url https://gitlab.nrp-nautilus.io/api/v4/projects/4145/packages/pypi/simple --user")
+    pip_install_command3 = ("pip install ndp-jupyterlab-extension --upgrade --index-url https://gitlab.nrp-nautilus.io/api/v4/projects/4145/packages/pypi/simple --user")
 
     # Modify the spawner's start command to include the pip install
     original_cmd = spawner.cmd or ["jupyterhub-singleuser"]
