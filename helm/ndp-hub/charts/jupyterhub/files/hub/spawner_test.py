@@ -259,10 +259,9 @@ class MySpawner(KubeSpawner):
                     else:
                         image = v["cpu"]
 
-                if not (":" in image):
-                    image += ":" + formdata.get('tag', [0])[0]
-                if not (":" in image):
-                    image += ":" + formdata.get('tag', [0])[0]
+                # if not (":" in image):
+                    # image += ":" + 'latest'
+                    # image += ":" + formdata.get('tag', [0])[0]
 
                 setattr(self, k, image)
 
