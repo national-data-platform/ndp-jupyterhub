@@ -1,3 +1,5 @@
+from tornado.web import HTTPError
+
 from kubespawner import KubeSpawner
 # from urllib.parse import parse_qs
 import requests
@@ -384,12 +386,15 @@ class MyAuthenticator(GenericOAuthenticator):
         if auth_state:
             if not await self.check_and_refresh_tokens(user, auth_state):
                 if handler:
-                    print(f'Redirecting to logout')
-                    handler.clear_cookie("jupyterhub-hub-login")
-                    handler.clear_cookie("jupyterhub-session-id")
-                    handler.redirect('/hub/logout')
-                    print(f'Redirected to logout')
-                    return False
+                    # print(f'Redirecting to logout')
+                    # handler.clear_cookie("jupyterhub-hub-login")
+                    # handler.clear_cookie("jupyterhub-session-id")
+                    # handler.redirect('/hub/logout')
+                    # print(f'Redirected to logout')
+                    raise HTTPError(401, "Your session has expired. Please log out and log in again.")
+                    # Optionally, you can stop further processing
+                    # handler.finish()
+                    # return False
                 return False
         return True
 
@@ -459,7 +464,7 @@ def pre_spawn_hook(spawner):
     pip_install_command0 = ("pip uninstall jupyterlab-git -y")
     pip_install_command1 = ("pip install --upgrade jupyterlab==4.2.4")
     pip_install_command2 = ("pip install jupyterlab-git --index-url https://gitlab.nrp-nautilus.io/api/v4/projects/4145/packages/pypi/simple --user")
-    pip_install_command3 = ("pip install ndp-jupyterlab-extension --upgrade --index-url https://gitlab.nrp-nautilus.io/api/v4/projects/4145/packages/pypi/simple --user")
+    pip_install_command3 = ("pip install ndp-jupyterlab-extension==0.1.59 --upgrade --index-url https://gitlab.nrp-nautilus.io/api/v4/projects/4145/packages/pypi/simple --user")
 
     # Modify the spawner's start command to include the pip install
     original_cmd = spawner.cmd or ["jupyterhub-singleuser"]

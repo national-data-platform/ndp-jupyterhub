@@ -1,3 +1,5 @@
+from tornado.web import HTTPError
+
 from kubespawner import KubeSpawner
 # from urllib.parse import parse_qs
 import requests
@@ -26,7 +28,7 @@ CLIENT_ID = 'jupyterhub_staging'
 # CLIENT_SECRET = ""
 CLIENT_SECRET = use_k8s_secret(namespace=NAMESPACE, secret_name='jupyterhub-secret')
 KEYCLOAK_URL = "https://idp-test.nationaldataplatform.org"
-NDP_EXT_VERSION = '0.1.57'
+NDP_EXT_VERSION = '0.1.59'
 
 USER_PERSISTENT_STORAGE_FOLDER = "_User-Persistent-Storage_CephFS_"
 
@@ -384,12 +386,15 @@ class MyAuthenticator(GenericOAuthenticator):
         if auth_state:
             if not await self.check_and_refresh_tokens(user, auth_state):
                 if handler:
-                    print(f'Redirecting to logout')
-                    handler.clear_cookie("jupyterhub-hub-login")
-                    handler.clear_cookie("jupyterhub-session-id")
-                    handler.redirect('/hub/logout')
-                    print(f'Redirected to logout')
-                    return False
+                    # print(f'Redirecting to logout')
+                    # handler.clear_cookie("jupyterhub-hub-login")
+                    # handler.clear_cookie("jupyterhub-session-id")
+                    # handler.redirect('/hub/logout')
+                    # print(f'Redirected to logout')
+                    raise HTTPError(401, "Your session has expired. Please log out and log in again.")
+                    # Optionally, you can stop further processing
+                    # handler.finish()
+                    # return False
                 return False
         return True
 
