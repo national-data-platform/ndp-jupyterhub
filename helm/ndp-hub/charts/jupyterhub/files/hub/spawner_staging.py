@@ -1,7 +1,6 @@
 from tornado.web import HTTPError
-
 from kubespawner import KubeSpawner
-# from urllib.parse import parse_qs
+from kubernetes import client, config
 import requests
 import logging
 from oauthenticator.generic import GenericOAuthenticator
@@ -11,7 +10,6 @@ import os
 import base64
 
 def use_k8s_secret(namespace, secret_name):
-    from kubernetes import client, config
     config.load_incluster_config()
     v1 = client.CoreV1Api()
 
@@ -19,14 +17,17 @@ def use_k8s_secret(namespace, secret_name):
     secret = v1.read_namespaced_secret(name=secret_name, namespace=namespace)
     secret_data = secret.data
     value = base64.b64decode(secret_data['values.yaml']).decode('utf-8')  # extract string from k8s secret
-    splitted = value.split('client_secret: ')[1]  # isolate cliect_secret_value
-    client_secret = splitted[:-1]  # cut \n
-    return client_secret
+
+    client_id_splitted = value.split('client_secret: ')[0].split('client_id: ')[1]  # isolate cliect_secret_value
+    client_id_splitted = client_id_splitted.split('\n')[0]  # cut \n
+
+    client_secret_splitted = value.split('client_secret: ')[1]  # isolate cliect_secret_value
+    client_secret_splitted = client_secret_splitted[:-1]  # cut \n
+
+    return client_id_splitted, client_secret_splitted
 
 NAMESPACE = 'ndp-staging'
-CLIENT_ID = 'jupyterhub_staging'
-# CLIENT_SECRET = ""
-CLIENT_SECRET = use_k8s_secret(namespace=NAMESPACE, secret_name='jupyterhub-secret')
+CLIENT_ID, CLIENT_SECRET = use_k8s_secret(namespace=NAMESPACE, secret_name='jupyterhub-secret')
 KEYCLOAK_URL = "https://idp-test.nationaldataplatform.org"
 NDP_EXT_VERSION = '0.1.59'
 
