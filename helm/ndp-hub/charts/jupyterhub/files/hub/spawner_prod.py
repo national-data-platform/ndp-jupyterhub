@@ -37,8 +37,8 @@ aws_access_key_id = 'admin'
 aws_secret_access_key = 'sample_key'
 mlflow_s3_endpoint_url = 'http://minio:9000'
 mlflow_tracking_uri = 'https://nationaldataplatform.org/mlflow'
-mlflow_admin_username = 'admin'
-mlflow_admin_password = 'password'
+# mlflow_admin_username = 'admin'
+# mlflow_admin_password = 'password'
 mlflow_default_user_password = 'password'
 aws_bucket_name = 'mlflow'
 CKAN_API_URL = "https://nationaldataplatform.org/catalog/api/3/action/"
@@ -489,26 +489,26 @@ def pre_spawn_hook(spawner):
     spawner.environment.update({"WORKSPACE_API_URL": WORKSPACE_API_URL})
 
     # create user inside MLFlow using its admin account
-    try:
-        spawner.environment.update({'MLFLOW_USER_CREATED': 'FALSE'})
-        logging.info(f'Trying to create new MLFlow user.')
-        response = requests.post(
-            f"{mlflow_tracking_uri}/api/2.0/mlflow/users/create",
-            json={
-                "username": username,
-                "password": mlflow_default_user_password,
-            },
-            auth=(mlflow_admin_username, mlflow_admin_password),
-        )
-
-        logging.info(f'{response.status_code}')
-        assert response.status_code == 200, response.json()['error_code']
-        logging.info(f'MLFlow user creation succeed.')
-        spawner.environment.update({'MLFLOW_USER_CREATED': 'TRUE'})
-    except AssertionError as e:
-        logging.info(f'MLFlow user creation failed: {str(e)}')
-    except requests.exceptions.ConnectionError:
-        logging.info(f'MLFlow Connection error, check that MLFlow service is not down.')
+    # try:
+    #     spawner.environment.update({'MLFLOW_USER_CREATED': 'FALSE'})
+    #     logging.info(f'Trying to create new MLFlow user.')
+    #     response = requests.post(
+    #         f"{mlflow_tracking_uri}/api/2.0/mlflow/users/create",
+    #         json={
+    #             "username": username,
+    #             "password": mlflow_default_user_password,
+    #         },
+    #         auth=(mlflow_admin_username, mlflow_admin_password),
+    #     )
+    #
+    #     logging.info(f'{response.status_code}')
+    #     assert response.status_code == 200, response.json()['error_code']
+    #     logging.info(f'MLFlow user creation succeed.')
+    #     spawner.environment.update({'MLFLOW_USER_CREATED': 'TRUE'})
+    # except AssertionError as e:
+    #     logging.info(f'MLFlow user creation failed: {str(e)}')
+    # except requests.exceptions.ConnectionError:
+    #     logging.info(f'MLFlow Connection error, check that MLFlow service is not down.')
 
 
 c.JupyterHub.template_paths = ['/etc/jupyterhub/custom']
