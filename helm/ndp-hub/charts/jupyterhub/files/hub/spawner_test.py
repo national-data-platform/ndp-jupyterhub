@@ -43,6 +43,7 @@ mlflow_default_user_password = 'password'
 aws_bucket_name = 'mlflow'
 CKAN_API_URL = "https://ndp-test.sdsc.edu/catalog/api/3/action/"
 WORKSPACE_API_URL = "https://ndp-test.sdsc.edu/workspaces-api"
+REFRESH_EVERY_SECONDS = 1200
 
 os.environ['JUPYTERHUB_CRYPT_KEY'] = token_hex(32)
 
@@ -379,11 +380,11 @@ class MyAuthenticator(GenericOAuthenticator):
         :param handler:
         :return:
         """
-        print(f'Handler: {handler}')
+        # print(f'Handler: {handler}')
 
         print(f"Refreshing Authenticator refresh_user for {user.name}")
         auth_state = await user.get_auth_state()
-        print(auth_state)
+        # print(auth_state)
         if auth_state:
             if not await self.check_and_refresh_tokens(user, auth_state):
                 if handler:
@@ -408,7 +409,7 @@ class MyAuthenticator(GenericOAuthenticator):
         :return:
         """
         refresh_token_valid = self.check_refresh_token_keycloak(auth_state)
-        print(f'refresh_token_valid: {refresh_token_valid}')
+        # print(f'refresh_token_valid: {refresh_token_valid}')
         if refresh_token_valid:
             # here we need to refresh access_token
             print('Trying to refresh access_token')
@@ -463,9 +464,9 @@ def pre_spawn_hook(spawner):
     git_creds_command0 = f"mkdir -p /home/jovyan/work/{USER_PERSISTENT_STORAGE_FOLDER}/.git"
     git_creds_command1 = f'git config --global credential.helper "store --file=/home/jovyan/work/{USER_PERSISTENT_STORAGE_FOLDER}/.git/.git-credentials"'
     pip_install_command0 = ("pip uninstall jupyterlab-git -y")
-    pip_install_command1 = ("pip install --upgrade jupyterlab==4.2.4")
-    pip_install_command2 = ("pip install jupyterlab-git --index-url https://gitlab.nrp-nautilus.io/api/v4/projects/4145/packages/pypi/simple --user")
-    pip_install_command3 = ("pip install ndp-jupyterlab-extension==0.1.59 --upgrade --index-url https://gitlab.nrp-nautilus.io/api/v4/projects/4145/packages/pypi/simple --user")
+    pip_install_command1 = ("pip install --upgrade jupyterlab==4.2.4 jupyter-archive==3.4.0 jupyterlab-launchpad==1.0.1")
+    pip_install_command2 = ("pip install jupyterlab-git==0.50.1 --index-url https://gitlab.nrp-nautilus.io/api/v4/projects/3930/packages/pypi/simple --user")
+    pip_install_command3 = ("pip install ndp-jupyterlab-extension==0.0.1 --upgrade --index-url https://gitlab.nrp-nautilus.io/api/v4/projects/3930/packages/pypi/simple --user")
 
     # Modify the spawner's start command to include the pip install
     original_cmd = spawner.cmd or ["jupyterhub-singleuser"]
@@ -487,6 +488,7 @@ def pre_spawn_hook(spawner):
     spawner.environment.update({'MLFLOW_TRACKING_USERNAME': username})
     spawner.environment.update({"CKAN_API_URL": CKAN_API_URL})
     spawner.environment.update({"WORKSPACE_API_URL": WORKSPACE_API_URL})
+    spawner.environment.update({"REFRESH_EVERY_SECONDS": str(REFRESH_EVERY_SECONDS)})
 
     # create user inside MLFlow using its admin account
     # try:
