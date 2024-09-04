@@ -28,10 +28,10 @@ jupyterhub:
       Authenticator:
         auto_login: True
         enable_auth_state: True
+        admin_users: ["i3perez@ucsd.edu","segurvich@ucsd.edu"]
       JupyterHub:
         admin_access: true
         authenticator_class: generic-oauth
-        admin_users: ["i3perez@ucsd.edu","segurvich@ucsd.edu"]
     service:
       type: ClusterIP
       annotations: {}
