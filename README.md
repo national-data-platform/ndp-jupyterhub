@@ -5,15 +5,17 @@
 
 ## Basic Set Up for NDP JupyterHub Customization
 
-### Prepare Nautilus Namespace
+### Prepare Nautilus Namespace and Local Configuration
 
-1. Create a namespace using the Nautilus portal or use one of the NDP official namespaces (for production / staging / test environments).
+Use this [documentation](https://docs.nationalresearchplatform.org/) for comprehensive Nautilus setup:
+
+1. Create a namespace using the Nautilus portal or use one of the NDP official namespaces (`ndp` / `ndp-staging` / `ndp-test`).
 2. Ask NRP support to make you an admin in that namespace
 3. Download `kubeconfig` file from the Nautilus portal
 
 ### Set up helm in your namespace
 
-1. Download and install `helm` locally:
+1. Download and install [`helm`](https://helm.sh/) locally:
    
    ```bash
    curl https://raw.githubusercontent.com/kubernetes/helm/master/scripts/get | bash
@@ -24,7 +26,7 @@
 
 ### Install JupyterHub
 
-1. Fetch the version of JupyterHub chart mentioned in `requirements.yaml`.
+1. Fetch the version of JupyterHub chart mentioned in `helm/ndp-hub/requirements.yaml`.
 
    ```bash
    cd helm/ndp-hub
@@ -38,7 +40,7 @@
    openssl rand -hex 32
    ```
    
-   Add output to `ndp-hub/values_<env>.yaml`:
+   Add/replace output to `ndp-hub/values_<env>.yaml`:
   
    ```
    jupyterhub:
@@ -47,10 +49,10 @@
    ```
 
 3. Create kubernetes secret
-- In `jhub/helm/ndp-hub/jupyterhub_secret.yaml`, insert the values obtained from NDP admins
+- In `jhub/helm/ndp-hub/jupyterhub_secret.yaml`, insert the client/secret values obtained from NDP admins
 - Execute:
    ```bash
-   kubectl create secret generic jupyterhub-secret --from-file=values.yaml=jhub/helm/ndp-hub/jupyterhub_secret.yaml -n ndp-test
+   kubectl create secret generic jupyterhub-secret --from-file=values.yaml=jhub/helm/ndp-hub/jupyterhub_secret.yaml --namespace <namespace>
    ```
 
 4. Install the hub
@@ -59,7 +61,10 @@
    helm upgrade --cleanup-on-fail --install ndp-hub ndp-hub --kube-context nautilus --namespace <namespace> --values ndp-hub/values_<env>.yaml
    ```
 
-5. Wait for the pods to be ready, and go to the URL specified in values_env.yaml
+5. Wait for the pods to be ready, and go to the URL specified in `jhub/helm/ndp-hub/values_env.yaml`:
+   - https://ndp-test-jupyterhub.nrp-nautilus.io/
+   - https://ndp-staging-jupyterhub.nrp-nautilus.io/
+   - https://ndp-jupyterhub.nrp-nautilus.io/
 
 6. To uninstall the deployment:
    
