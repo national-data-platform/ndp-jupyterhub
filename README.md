@@ -97,7 +97,7 @@ Use this [documentation](https://docs.nationalresearchplatform.org/) for compreh
    Note: the content notebooks and other files inside the image typically is downloaded from separate repo:
    - https://github.com/national-data-platform/jupyter-notebooks
 4. There are few other Jupyter dependencies in the following GIT repos:
- - https://github.com/national-data-platform/jupyter-templates - this is to override few pages UI, based on this guide: https://jupyterhub.readthedocs.io/en/stable/howto/templates.html#extending-templates
+ - https://github.com/national-data-platform/jupyter-templates - this is to override few UI web pages, based on this guide: https://jupyterhub.readthedocs.io/en/stable/howto/templates.html#extending-templates
  - https://github.com/national-data-platform/ndp-jupyterlab-extension - NDP extension for JupyterLab. It is being installed on single-user server instance each time while spawning. Defined in `spawner_env.py` files.
  - https://github.com/national-data-platform/jupyterlab-git - Special version of JupyterLab GIT extension. It was created to allow passing GIT link into GIT Clone dialog for NDP needs. It is being installed on single-user server instance each time while spawning. Defined in `spawner_env.py` files.
 5. The main JupyterHub image is customized as well to be able to serve NDP logo images. It can be modified and built from `helm/customize/Dockerfile`. In case of creating new image version, it has to be modified inside `helm/ndp-hub/charts/jupyterhub/values.yaml`:
