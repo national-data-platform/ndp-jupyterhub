@@ -31,7 +31,7 @@ CLIENT_ID, CLIENT_SECRET = use_k8s_secret(namespace=NAMESPACE, secret_name='jupy
 KEYCLOAK_URL = "https://idp-test.nationaldataplatform.org"
 # NDP_EXT_VERSION = '0.1.57'
 
-USER_PERSISTENT_STORAGE_FOLDER = "_User-Persistent-Storage_CephFS_"
+USER_PERSISTENT_STORAGE_FOLDER = "_User-Persistent-Storage_CephBlockCentral_"
 
 aws_access_key_id = 'admin'
 aws_secret_access_key = 'sample_key'
@@ -217,7 +217,7 @@ class MySpawner(KubeSpawner):
 
                     <b><i>Note:</b> Please stop your server after it is no longer needed, or in case you want to launch different content image
                     <p style="color:green;">In order to stop the server from running Jupyter Lab, go to File > Hub Control Panel > Stop Server</i></p>
-                    <p><i><b>Note:</b> /home/jovyan/work/_User-Persistent-Storage_CephFS_ is the persistent volume directory, make sure to save your work in it, otherwise it will be deleted</p>
+                    <p><i><b>Note:</b> /home/jovyan/work/_User-Persistent-Storage_CephBlockCentral_ is the persistent volume directory, make sure to save your work in it, otherwise it will be deleted</p>
                     """
 
     def options_from_form(self, formdata):
@@ -329,22 +329,28 @@ class MySpawner(KubeSpawner):
             })
 
         self.volume_mounts = [
+            # {
+            #     'name': 'volume-ceph-{username}',
+            #     'mountPath': f'/home/jovyan/work/{USER_PERSISTENT_STORAGE_FOLDER}',
+            # },
             {
-                'name': 'volume-ceph-{username}',
+                'name': 'volume-ceph-bc-{username}',
                 'mountPath': f'/home/jovyan/work/{USER_PERSISTENT_STORAGE_FOLDER}',
-            }
+            },
         ]
         self.volumes = [
+            # {
+            #     'name': 'volume-ceph-{username}',
+            #     'persistentVolumeClaim': {
+            #         'claimName': 'claim-ceph-{username}'
+            #     }
+            # },
             {
-                'name': 'volume-ceph-{username}',
+                'name': 'volume-ceph-bc-{username}',
                 'persistentVolumeClaim': {
-                    'claimName': 'claim-ceph-{username}'
+                    'claimName': 'claim-ceph-bc-{username}'
                 }
             },
-            # {
-            #     'name': 'config-volume',
-            #     'emptyDir': {}
-            # },
         ]
 
         if formdata.get('shm', [0])[0]:
