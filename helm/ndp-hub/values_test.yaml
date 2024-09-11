@@ -110,26 +110,18 @@ jupyterhub:
     initContainers:
     - name: volume-permissions
       image: busybox
-#      command: ["sh", "-c", "chmod 777 -R /home/jovyan/work/_User-Persistent-Storage_CephFS_"]
-      command: ["sh", "-c", "chmod 777 -R /home/jovyan/work/_User-Persistent-Storage_CephBlockCentral_"]
-#      volumeMounts:
-#        - mountPath: /home/jovyan/work/_User-Persistent-Storage_CephFS_
-#          name: volume-ceph-{username}
+      command: ["sh", "-c", "chmod 777 -R /home/jovyan/work/_User-Persistent-Storage_CephBlock_"]
       volumeMounts:
-        - mountPath: /home/jovyan/work/_User-Persistent-Storage_CephBlockCentral_
-          name: volume-ceph-bc-{username}
+        - mountPath: /home/jovyan/work/_User-Persistent-Storage_CephBlock_
+          name: volume-ceph-bw-{username}
     storage:
       extraLabels: {}
       capacity: 10Gi
-#      homeMountPath: /home/jovyan/work/_User-Persistent-Storage_CephFS_
-      homeMountPath: /home/jovyan/work/_User-Persistent-Storage_CephBlockCentral_
+      homeMountPath: /home/jovyan/work/_User-Persistent-Storage_CephBlock_
       dynamic:
-#        storageClass: rook-cephfs
-        storageClass: rook-ceph-block-central
-#        pvcNameTemplate: claim-ceph-{username}
-        pvcNameTemplate: claim-ceph-bc-{username}
-#        volumeNameTemplate: volume-ceph-{username}
-        volumeNameTemplate: volume-ceph-bc-{username}
+        storageClass: rook-ceph-block
+        pvcNameTemplate: claim-ceph-bw-{username}
+        volumeNameTemplate: volume-ceph-bw-{username}
         storageAccessModes: [ReadWriteOnce]
 
     image:
