@@ -22,7 +22,7 @@ with open(values_yaml_file, "r") as yaml_file:
     values_yaml_content = yaml_file.read()
 
 # Replace the placeholder in the values.yaml with the properly indented Python code
-updated_yaml_content = values_yaml_content.replace("{{ python_code_here }}", indented_python_code)
+updated_yaml_content = values_yaml_content.replace(f"# spawner_{env}.py code here", indented_python_code)
 
 # Write the updated content to a new YAML file
 with open(output_file, "w") as output_yaml_file:

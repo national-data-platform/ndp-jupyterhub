@@ -81,7 +81,7 @@ jupyterhub:
     extraConfig:
 
       default.py: |
-{{ python_code_here }}
+# spawner_staging.py code here
 
   proxy:
     secretToken: 693f72d455485b0a90a27968685e08e006523320e914f07b1f15fc4e8487d6fd
