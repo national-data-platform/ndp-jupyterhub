@@ -1,0 +1,27 @@
+
+apiVersion: v1
+kind: Pod
+metadata:
+  name: copy-data-pod
+spec:
+  containers:
+    - name: copy-container
+      image: busybox
+      command: ["/bin/sh", "-c"]
+      args:
+        - |
+          cp -r /source/* /destination/ && echo "Data copied successfully";
+          sleep 3600;  # Keep the pod running to check the files
+      volumeMounts:
+        - name: source-volume
+          mountPath: /source
+        - name: destination-volume
+          mountPath: /destination
+  volumes:
+    - name: source-volume
+      persistentVolumeClaim:
+        claimName: claim-ceph-segurvich-40ucsd-2eedu
+    - name: destination-volume
+      persistentVolumeClaim:
+        claimName: claim-ceph-bw-segurvich-40ucsd-2eedu
+  restartPolicy: Never
