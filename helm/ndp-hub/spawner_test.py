@@ -31,7 +31,7 @@ CLIENT_ID, CLIENT_SECRET = use_k8s_secret(namespace=NAMESPACE, secret_name='jupy
 KEYCLOAK_URL = "https://idp-test.nationaldataplatform.org"
 # NDP_EXT_VERSION = '0.1.57'
 
-USER_PERSISTENT_STORAGE_FOLDER = "_User-Persistent-Storage_CephBlockCentral_"
+USER_PERSISTENT_STORAGE_FOLDER = "_User-Persistent-Storage_CephBlock_"
 
 aws_access_key_id = 'admin'
 aws_secret_access_key = 'sample_key'
@@ -217,7 +217,7 @@ class MySpawner(KubeSpawner):
 
                     <b><i>Note:</b> Please stop your server after it is no longer needed, or in case you want to launch different content image
                     <p style="color:green;">In order to stop the server from running Jupyter Lab, go to File > Hub Control Panel > Stop Server</i></p>
-                    <p><i><b>Note:</b> /home/jovyan/work/_User-Persistent-Storage_CephBlockCentral_ is the persistent volume directory, make sure to save your work in it, otherwise it will be deleted</p>
+                    <p><i><b>Note:</b> /home/jovyan/work/_User-Persistent-Storage_CephBlock_ is the persistent volume directory, make sure to save your work in it, otherwise it will be deleted</p>
                     """
 
     def options_from_form(self, formdata):
@@ -329,26 +329,16 @@ class MySpawner(KubeSpawner):
             })
 
         self.volume_mounts = [
-            # {
-            #     'name': 'volume-ceph-{username}',
-            #     'mountPath': f'/home/jovyan/work/{USER_PERSISTENT_STORAGE_FOLDER}',
-            # },
             {
-                'name': 'volume-ceph-bc-{username}',
+                'name': 'volume-ceph-bw-{username}',
                 'mountPath': f'/home/jovyan/work/{USER_PERSISTENT_STORAGE_FOLDER}',
-            },
+            }
         ]
         self.volumes = [
-            # {
-            #     'name': 'volume-ceph-{username}',
-            #     'persistentVolumeClaim': {
-            #         'claimName': 'claim-ceph-{username}'
-            #     }
-            # },
             {
-                'name': 'volume-ceph-bc-{username}',
+                'name': 'volume-ceph-bw-{username}',
                 'persistentVolumeClaim': {
-                    'claimName': 'claim-ceph-bc-{username}'
+                    'claimName': 'claim-ceph-bw-{username}'
                 }
             },
         ]
@@ -496,32 +486,9 @@ def pre_spawn_hook(spawner):
     spawner.environment.update({"WORKSPACE_API_URL": WORKSPACE_API_URL})
     spawner.environment.update({"REFRESH_EVERY_SECONDS": str(REFRESH_EVERY_SECONDS)})
 
-    # create user inside MLFlow using its admin account
-    # try:
-    #     spawner.environment.update({'MLFLOW_USER_CREATED': 'FALSE'})
-    #     logging.info(f'Trying to create new MLFlow user.')
-    #     response = requests.post(
-    #         f"{mlflow_tracking_uri}/api/2.0/mlflow/users/create",
-    #         json={
-    #             "username": username,
-    #             "password": mlflow_default_user_password,
-    #         },
-    #         auth=(mlflow_admin_username, mlflow_admin_password),
-    #     )
-    #
-    #     logging.info(f'{response.status_code}')
-    #     assert response.status_code == 200, response.json()['error_code']
-    #     logging.info(f'MLFlow user creation succeed.')
-    #     spawner.environment.update({'MLFLOW_USER_CREATED': 'TRUE'})
-    # except AssertionError as e:
-    #     logging.info(f'MLFlow user creation failed: {str(e)}')
-    # except requests.exceptions.ConnectionError:
-    #     logging.info(f'MLFlow Connection error, check that MLFlow service is not down.')
-
-
 c.JupyterHub.template_paths = ['/etc/jupyterhub/custom']
 c.JupyterHub.spawner_class = MySpawner
-c.JupyterHub.allow_named_servers = True
+c.JupyterHub.allow_named_servers = False
 c.JupyterHub.authenticator_class = MyAuthenticator
 
 # check only once per day not to block single-user
@@ -541,5 +508,5 @@ c.MySpawner.environment = {
 c.MySpawner.pre_spawn_hook = pre_spawn_hook
 c.MySpawner.http_timeout = 1200
 c.MySpawner.auth_state_hook = auth_state_hook
-# c.MySpawner.remove = True  # Remove containers once they are stopped
+c.MySpawner.remove = True  # Remove containers once they are stopped
 c.MySpawner.profile_list = copy.deepcopy(original_profile_list)
