@@ -81,8 +81,7 @@ jupyterhub:
     extraConfig:
 
       default.py: |
-        import os
-        exec(open(os.path.join("/usr/local/etc/jupyterhub/config/spawner_staging.py")).read())
+{{ python_code_here }}
 
   proxy:
     secretToken: 693f72d455485b0a90a27968685e08e006523320e914f07b1f15fc4e8487d6fd
