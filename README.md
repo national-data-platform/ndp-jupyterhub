@@ -56,9 +56,17 @@ Use this [documentation](https://docs.nationalresearchplatform.org/) for compreh
    ```
 
 4. Install the hub
-
+- TEST
    ```bash
-   helm upgrade --cleanup-on-fail --install ndp-hub ndp-hub --kube-context nautilus --namespace <namespace> --values ndp-hub/values_<env>.yaml
+   make deploy-test
+   ```
+- STAGING
+   ```bash
+   make deploy-staging
+   ```
+- PRODUCTION
+   ```bash
+   make deploy-prod
    ```
 
 5. Wait for the pods to be ready, and go to the URL specified in `jhub/helm/ndp-hub/values_env.yaml`:
@@ -81,7 +89,7 @@ Use this [documentation](https://docs.nationalresearchplatform.org/) for compreh
    - `values_staging.yaml`
    - `values_prod.yaml`
 
-- `helm/ndp-hub/charts/jupyterhub` folder contains 3 `spawner_env.py` complimentary configuration files, such that values_env.yaml references spawner_env.py:
+- `helm/ndp-hub` folder contains 3 `spawner_env.py` complimentary configuration files, such that values_env.yaml references spawner_env.py:
   - `spawner_test.py`
   - `spawner_staging.py`
   - `spawner_prod.py`
