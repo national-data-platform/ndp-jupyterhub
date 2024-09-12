@@ -462,7 +462,7 @@ def pre_spawn_hook(spawner):
     pip_install_command0 = ("pip uninstall jupyterlab-git -y")
     pip_install_command1 = ("pip install --upgrade jupyterlab==4.2.4 jupyter-archive==3.4.0 jupyterlab-launchpad==1.0.1")
     pip_install_command2 = ("pip install jupyterlab-git==0.50.1 --index-url https://gitlab.nrp-nautilus.io/api/v4/projects/3930/packages/pypi/simple --user")
-    pip_install_command3 = ("pip install ndp-jupyterlab-extension==0.0.1 --upgrade --index-url https://gitlab.nrp-nautilus.io/api/v4/projects/3930/packages/pypi/simple --user")
+    pip_install_command3 = ("pip install ndp-jupyterlab-extension==0.0.2 --upgrade --index-url https://gitlab.nrp-nautilus.io/api/v4/projects/3930/packages/pypi/simple --user")
 
     # Modify the spawner's start command to include the pip install
     original_cmd = spawner.cmd or ["jupyterhub-singleuser"]
