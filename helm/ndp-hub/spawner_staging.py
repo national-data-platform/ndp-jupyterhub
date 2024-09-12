@@ -183,7 +183,9 @@ class MySpawner(KubeSpawner):
                     <br>
                     <div class='form-group' id='kubespawner-profiles-list'>
                     <br>
-                    <label for="profile-select">Select Pre-Built Image</label>
+                    <label for="profile-select">Select Pre-Built Image
+                        (<a href="https://github.com/national-data-platform/jupyter-notebooks/blob/main/README.md" target="_blank">Pre-Built Image Guide</a>):
+                    </label>
                     <select name="profile" id="profile-select" class="form-control input">
                         {% for profile in profile_list %}
                         <option value="{{ loop.index0 }}" {% if profile.default %}selected{% endif %}>
