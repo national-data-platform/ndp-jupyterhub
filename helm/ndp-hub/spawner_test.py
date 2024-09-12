@@ -29,7 +29,7 @@ def use_k8s_secret(namespace, secret_name):
 NAMESPACE = 'ndp-test'
 CLIENT_ID, CLIENT_SECRET = use_k8s_secret(namespace=NAMESPACE, secret_name='jupyterhub-secret')
 KEYCLOAK_URL = "https://idp-test.nationaldataplatform.org"
-# NDP_EXT_VERSION = '0.1.57'
+NDP_EXT_VERSION = '0.0.3'
 
 USER_PERSISTENT_STORAGE_FOLDER = "_User-Persistent-Storage_CephBlock_"
 
@@ -159,14 +159,14 @@ class MySpawner(KubeSpawner):
                     <br/>
                     <label for="gputype">GPU type</label>
                     <select class="form-control input" name="gputype">
-                      <option value="" selected="selected">Any</option>
+                      <option value="">Any</option>
                       <option value="NVIDIA-GeForce-RTX-2080-Ti">NVIDIA GeForce RTX 2080 Ti</option>
                       <option value="NVIDIA-GeForce-GTX-1070">NVIDIA GeForce GTX 1070</option>
                       <option value="NVIDIA-GeForce-GTX-1080">NVIDIA GeForce GTX 1080</option>
                       <option value="Quadro-M4000">Quadro M4000</option>
                       <option value="NVIDIA-A100-PCIE-40GB-MIG-2g.10gb">NVIDIA A100 MIG 2g.10gb</option>
                       <option value="NVIDIA-A100-SXM4-80GB">NVIDIA A100 80GB</option>
-                      <option value="NVIDIA-GeForce-GTX-1080-Ti">NVIDIA GeForce GTX 1080 Ti</option>
+                      <option value="NVIDIA-GeForce-GTX-1080-Ti" selected="selected">NVIDIA GeForce GTX 1080 Ti</option>
                       <option value="NVIDIA-TITAN-Xp">NVIDIA TITAN Xp</option>
                       <option value="Tesla-T4">Tesla T4</option>
                       <option value="NVIDIA-GeForce-RTX-3090">NVIDIA GeForce RTX 3090</option>
@@ -464,7 +464,7 @@ def pre_spawn_hook(spawner):
     pip_install_command0 = ("pip uninstall jupyterlab-git -y")
     pip_install_command1 = ("pip install --upgrade jupyterlab==4.2.4 jupyter-archive==3.4.0 jupyterlab-launchpad==1.0.1")
     pip_install_command2 = ("pip install jupyterlab-git==0.50.1 --index-url https://gitlab.nrp-nautilus.io/api/v4/projects/3930/packages/pypi/simple --user")
-    pip_install_command3 = ("pip install ndp-jupyterlab-extension==0.0.3 --upgrade --index-url https://gitlab.nrp-nautilus.io/api/v4/projects/3930/packages/pypi/simple --user")
+    pip_install_command3 = (f"pip install ndp-jupyterlab-extension=={NDP_EXT_VERSION} --index-url https://gitlab.nrp-nautilus.io/api/v4/projects/3930/packages/pypi/simple --user")
 
     # Modify the spawner's start command to include the pip install
     original_cmd = spawner.cmd or ["jupyterhub-singleuser"]
