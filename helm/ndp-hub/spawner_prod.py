@@ -29,7 +29,7 @@ def use_k8s_secret(namespace, secret_name):
 NAMESPACE = 'ndp'
 CLIENT_ID, CLIENT_SECRET = use_k8s_secret(namespace=NAMESPACE, secret_name='jupyterhub-secret')
 KEYCLOAK_URL = "https://idp.nationaldataplatform.org"
-NDP_EXT_VERSION = '0.0.1'
+NDP_EXT_VERSION = '0.0.3'
 
 USER_PERSISTENT_STORAGE_FOLDER = "_User-Persistent-Storage_CephBlock_"
 
@@ -159,14 +159,14 @@ class MySpawner(KubeSpawner):
                     <br/>
                     <label for="gputype">GPU type</label>
                     <select class="form-control input" name="gputype">
-                      <option value="">Any</option>
+                      <option value="" selected="selected">Any</option>
                       <option value="NVIDIA-GeForce-RTX-2080-Ti">NVIDIA GeForce RTX 2080 Ti</option>
                       <option value="NVIDIA-GeForce-GTX-1070">NVIDIA GeForce GTX 1070</option>
                       <option value="NVIDIA-GeForce-GTX-1080">NVIDIA GeForce GTX 1080</option>
                       <option value="Quadro-M4000">Quadro M4000</option>
                       <option value="NVIDIA-A100-PCIE-40GB-MIG-2g.10gb">NVIDIA A100 MIG 2g.10gb</option>
                       <option value="NVIDIA-A100-SXM4-80GB">NVIDIA A100 80GB</option>
-                      <option value="NVIDIA-GeForce-GTX-1080-Ti" selected="selected">NVIDIA GeForce GTX 1080 Ti</option>
+                      <option value="NVIDIA-GeForce-GTX-1080-Ti">NVIDIA GeForce GTX 1080 Ti</option>
                       <option value="NVIDIA-TITAN-Xp">NVIDIA TITAN Xp</option>
                       <option value="Tesla-T4">Tesla T4</option>
                       <option value="NVIDIA-GeForce-RTX-3090">NVIDIA GeForce RTX 3090</option>
@@ -183,7 +183,9 @@ class MySpawner(KubeSpawner):
                     <br>
                     <div class='form-group' id='kubespawner-profiles-list'>
                     <br>
-                    <label for="profile-select">Select Pre-Built Image</label>
+                    <label for="profile-select">Select Pre-Built Image
+                        (<a href="https://github.com/national-data-platform/jupyter-notebooks/blob/main/README.md" target="_blank">Pre-Built Image Guide</a>):
+                    </label>
                     <select name="profile" id="profile-select" class="form-control input">
                         {% for profile in profile_list %}
                         <option value="{{ loop.index0 }}" {% if profile.default %}selected{% endif %}>

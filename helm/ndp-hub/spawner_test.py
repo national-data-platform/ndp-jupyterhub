@@ -159,14 +159,14 @@ class MySpawner(KubeSpawner):
                     <br/>
                     <label for="gputype">GPU type</label>
                     <select class="form-control input" name="gputype">
-                      <option value="">Any</option>
+                      <option value="" selected="selected">Any</option>
                       <option value="NVIDIA-GeForce-RTX-2080-Ti">NVIDIA GeForce RTX 2080 Ti</option>
                       <option value="NVIDIA-GeForce-GTX-1070">NVIDIA GeForce GTX 1070</option>
                       <option value="NVIDIA-GeForce-GTX-1080">NVIDIA GeForce GTX 1080</option>
                       <option value="Quadro-M4000">Quadro M4000</option>
                       <option value="NVIDIA-A100-PCIE-40GB-MIG-2g.10gb">NVIDIA A100 MIG 2g.10gb</option>
                       <option value="NVIDIA-A100-SXM4-80GB">NVIDIA A100 80GB</option>
-                      <option value="NVIDIA-GeForce-GTX-1080-Ti" selected="selected">NVIDIA GeForce GTX 1080 Ti</option>
+                      <option value="NVIDIA-GeForce-GTX-1080-Ti">NVIDIA GeForce GTX 1080 Ti</option>
                       <option value="NVIDIA-TITAN-Xp">NVIDIA TITAN Xp</option>
                       <option value="Tesla-T4">Tesla T4</option>
                       <option value="NVIDIA-GeForce-RTX-3090">NVIDIA GeForce RTX 3090</option>
