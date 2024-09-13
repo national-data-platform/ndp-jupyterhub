@@ -81,8 +81,7 @@ jupyterhub:
     extraConfig:
 
       default.py: |
-        import os
-        exec(open(os.path.join("/usr/local/etc/jupyterhub/config/spawner_prod.py")).read())
+# spawner_prod.py code here
 
   proxy:
     secretToken: 693f72d455485b0a90a27968685e08e006523320e914f07b1f15fc4e8487d6fd
@@ -111,19 +110,19 @@ jupyterhub:
     initContainers:
     - name: volume-permissions
       image: busybox
-      command: ["sh", "-c", "chmod 777 -R /home/jovyan/work/_User-Persistent-Storage_CephFS_"]
+      command: ["sh", "-c", "chmod 777 -R /home/jovyan/work/_User-Persistent-Storage_CephBlock_"]
       volumeMounts:
-        - mountPath: /home/jovyan/work/_User-Persistent-Storage_CephFS_
-          name: volume-ceph-{username}
+        - mountPath: /home/jovyan/work/_User-Persistent-Storage_CephBlock_
+          name: volume-ceph-bw-{username}
     storage:
       extraLabels: {}
-      capacity: 100Gi
-      homeMountPath: /home/jovyan/work/_User-Persistent-Storage_CephFS_
+      capacity: 10Gi
+      homeMountPath: /home/jovyan/work/_User-Persistent-Storage_CephBlock_
       dynamic:
-        storageClass: rook-cephfs
-        pvcNameTemplate: claim-ceph-{username}
-        volumeNameTemplate: volume-ceph-{username}
-        storageAccessModes: [ReadWriteMany]
+        storageClass: rook-ceph-block
+        pvcNameTemplate: claim-ceph-bw-{username}
+        volumeNameTemplate: volume-ceph-bw-{username}
+        storageAccessModes: [ReadWriteOnce]
 
     image:
       name: gitlab-registry.nrp-nautilus.io/ndp/ndp-docker-images/jhub-spawn

@@ -26,23 +26,23 @@ def use_k8s_secret(namespace, secret_name):
 
     return client_id_splitted, client_secret_splitted
 
-NAMESPACE = 'ndp-test'
+NAMESPACE = 'ndp'
 CLIENT_ID, CLIENT_SECRET = use_k8s_secret(namespace=NAMESPACE, secret_name='jupyterhub-secret')
-KEYCLOAK_URL = "https://idp-test.nationaldataplatform.org"
-# NDP_EXT_VERSION = '0.1.57'
+KEYCLOAK_URL = "https://idp.nationaldataplatform.org"
+NDP_EXT_VERSION = '0.0.3'
 
-USER_PERSISTENT_STORAGE_FOLDER = "_User-Persistent-Storage_CephFS_"
+USER_PERSISTENT_STORAGE_FOLDER = "_User-Persistent-Storage_CephBlock_"
 
 aws_access_key_id = 'admin'
 aws_secret_access_key = 'sample_key'
 mlflow_s3_endpoint_url = 'http://minio:9000'
-mlflow_tracking_uri = 'https://ndp-test.sdsc.edu/mlflow'
+mlflow_tracking_uri = 'https://nationaldataplatform.org/mlflow'
 # mlflow_admin_username = 'admin'
 # mlflow_admin_password = 'password'
 mlflow_default_user_password = 'password'
 aws_bucket_name = 'mlflow'
-CKAN_API_URL = "https://ndp-test.sdsc.edu/catalog/api/3/action/"
-WORKSPACE_API_URL = "https://ndp-test.sdsc.edu/workspaces-api"
+CKAN_API_URL = "https://nationaldataplatform.org/catalog/api/3/action/"
+WORKSPACE_API_URL = "https://nationaldataplatform.org/workspaces-api"
 REFRESH_EVERY_SECONDS = 1200
 
 os.environ['JUPYTERHUB_CRYPT_KEY'] = token_hex(32)
@@ -159,14 +159,14 @@ class MySpawner(KubeSpawner):
                     <br/>
                     <label for="gputype">GPU type</label>
                     <select class="form-control input" name="gputype">
-                      <option value="">Any</option>
+                      <option value="" selected="selected">Any</option>
                       <option value="NVIDIA-GeForce-RTX-2080-Ti">NVIDIA GeForce RTX 2080 Ti</option>
                       <option value="NVIDIA-GeForce-GTX-1070">NVIDIA GeForce GTX 1070</option>
                       <option value="NVIDIA-GeForce-GTX-1080">NVIDIA GeForce GTX 1080</option>
                       <option value="Quadro-M4000">Quadro M4000</option>
                       <option value="NVIDIA-A100-PCIE-40GB-MIG-2g.10gb">NVIDIA A100 MIG 2g.10gb</option>
                       <option value="NVIDIA-A100-SXM4-80GB">NVIDIA A100 80GB</option>
-                      <option value="NVIDIA-GeForce-GTX-1080-Ti" selected="selected">NVIDIA GeForce GTX 1080 Ti</option>
+                      <option value="NVIDIA-GeForce-GTX-1080-Ti">NVIDIA GeForce GTX 1080 Ti</option>
                       <option value="NVIDIA-TITAN-Xp">NVIDIA TITAN Xp</option>
                       <option value="Tesla-T4">Tesla T4</option>
                       <option value="NVIDIA-GeForce-RTX-3090">NVIDIA GeForce RTX 3090</option>
@@ -183,7 +183,9 @@ class MySpawner(KubeSpawner):
                     <br>
                     <div class='form-group' id='kubespawner-profiles-list'>
                     <br>
-                    <label for="profile-select">Select Pre-Built Image</label>
+                    <label for="profile-select">Select Pre-Built Image
+                        (<a href="https://github.com/national-data-platform/jupyter-notebooks/blob/main/README.md" target="_blank">Pre-Built Image Guide</a>):
+                    </label>
                     <select name="profile" id="profile-select" class="form-control input">
                         {% for profile in profile_list %}
                         <option value="{{ loop.index0 }}" {% if profile.default %}selected{% endif %}>
@@ -217,7 +219,7 @@ class MySpawner(KubeSpawner):
 
                     <b><i>Note:</b> Please stop your server after it is no longer needed, or in case you want to launch different content image
                     <p style="color:green;">In order to stop the server from running Jupyter Lab, go to File > Hub Control Panel > Stop Server</i></p>
-                    <p><i><b>Note:</b> /home/jovyan/work/_User-Persistent-Storage_CephFS_ is the persistent volume directory, make sure to save your work in it, otherwise it will be deleted</p>
+                    <p><i><b>Note:</b> /home/jovyan/work/_User-Persistent-Storage_CephBlock_ is the persistent volume directory, make sure to save your work in it, otherwise it will be deleted</p>
                     """
 
     def options_from_form(self, formdata):
@@ -330,21 +332,17 @@ class MySpawner(KubeSpawner):
 
         self.volume_mounts = [
             {
-                'name': 'volume-ceph-{username}',
+                'name': 'volume-ceph-bw-{username}',
                 'mountPath': f'/home/jovyan/work/{USER_PERSISTENT_STORAGE_FOLDER}',
             }
         ]
         self.volumes = [
             {
-                'name': 'volume-ceph-{username}',
+                'name': 'volume-ceph-bw-{username}',
                 'persistentVolumeClaim': {
-                    'claimName': 'claim-ceph-{username}'
+                    'claimName': 'claim-ceph-bw-{username}'
                 }
             },
-            # {
-            #     'name': 'config-volume',
-            #     'emptyDir': {}
-            # },
         ]
 
         if formdata.get('shm', [0])[0]:
@@ -466,7 +464,7 @@ def pre_spawn_hook(spawner):
     pip_install_command0 = ("pip uninstall jupyterlab-git -y")
     pip_install_command1 = ("pip install --upgrade jupyterlab==4.2.4 jupyter-archive==3.4.0 jupyterlab-launchpad==1.0.1")
     pip_install_command2 = ("pip install jupyterlab-git==0.50.1 --index-url https://gitlab.nrp-nautilus.io/api/v4/projects/3930/packages/pypi/simple --user")
-    pip_install_command3 = ("pip install ndp-jupyterlab-extension==0.0.1 --upgrade --index-url https://gitlab.nrp-nautilus.io/api/v4/projects/3930/packages/pypi/simple --user")
+    pip_install_command3 = (f"pip install ndp-jupyterlab-extension=={NDP_EXT_VERSION} --index-url https://gitlab.nrp-nautilus.io/api/v4/projects/3930/packages/pypi/simple --user")
 
     # Modify the spawner's start command to include the pip install
     original_cmd = spawner.cmd or ["jupyterhub-singleuser"]
@@ -490,32 +488,9 @@ def pre_spawn_hook(spawner):
     spawner.environment.update({"WORKSPACE_API_URL": WORKSPACE_API_URL})
     spawner.environment.update({"REFRESH_EVERY_SECONDS": str(REFRESH_EVERY_SECONDS)})
 
-    # create user inside MLFlow using its admin account
-    # try:
-    #     spawner.environment.update({'MLFLOW_USER_CREATED': 'FALSE'})
-    #     logging.info(f'Trying to create new MLFlow user.')
-    #     response = requests.post(
-    #         f"{mlflow_tracking_uri}/api/2.0/mlflow/users/create",
-    #         json={
-    #             "username": username,
-    #             "password": mlflow_default_user_password,
-    #         },
-    #         auth=(mlflow_admin_username, mlflow_admin_password),
-    #     )
-    #
-    #     logging.info(f'{response.status_code}')
-    #     assert response.status_code == 200, response.json()['error_code']
-    #     logging.info(f'MLFlow user creation succeed.')
-    #     spawner.environment.update({'MLFLOW_USER_CREATED': 'TRUE'})
-    # except AssertionError as e:
-    #     logging.info(f'MLFlow user creation failed: {str(e)}')
-    # except requests.exceptions.ConnectionError:
-    #     logging.info(f'MLFlow Connection error, check that MLFlow service is not down.')
-
-
 c.JupyterHub.template_paths = ['/etc/jupyterhub/custom']
 c.JupyterHub.spawner_class = MySpawner
-c.JupyterHub.allow_named_servers = True
+c.JupyterHub.allow_named_servers = False
 c.JupyterHub.authenticator_class = MyAuthenticator
 
 # check only once per day not to block single-user
@@ -535,5 +510,5 @@ c.MySpawner.environment = {
 c.MySpawner.pre_spawn_hook = pre_spawn_hook
 c.MySpawner.http_timeout = 1200
 c.MySpawner.auth_state_hook = auth_state_hook
-# c.MySpawner.remove = True  # Remove containers once they are stopped
+c.MySpawner.remove = True  # Remove containers once they are stopped
 c.MySpawner.profile_list = copy.deepcopy(original_profile_list)
