@@ -146,6 +146,12 @@ class MySpawner(KubeSpawner):
                       <option value="us-central">Central</option>
                       <option value="us-east">East</option>
                     </select>
+                    
+                    <label for="zone">Zone</label>
+                    <select class="form-control input" name="zone">
+                      <option value="" selected="selected">Any</option>
+                      <option value="ucsd">UCSD</option>
+                    </select>
 
 
                     <label for="gpus">GPUs</label>
@@ -198,6 +204,9 @@ class MySpawner(KubeSpawner):
                         (<a href="https://jupyter-docker-stacks.readthedocs.io/en/latest/using/selecting.html" target="_blank">JupyterLab Compatible</a>):
                     </label>
                     <input name="custom_image" type="text" class="form-control input" autocomplete="on" placeholder="Enter your custom image URL here, including the tag. For example: jupyter/r-notebook:latest"/>
+
+                    <label for="timeout">Timeout (in seconds): once a server has been successfully spawned, time to wait until it actually starts </label>
+                    <input name="timeout" type="text" class="form-control input" autocomplete="off" placeholder="1200"/>
                     </div>
 
                     <!--
@@ -311,6 +320,13 @@ class MySpawner(KubeSpawner):
                 'operator': 'In',
                 'values': formdata.get('region', [0])
             })
+        if formdata.get('zone', [0])[0] == "ucsd":
+            #     zone
+            nodeSelectorTermsExpressions.append({
+                'key': 'topology.kubernetes.io/zone',
+                'operator': 'In',
+                'values': ['ucsd', 'ucsd-sdsc', 'ucsd-nrp']
+            })
 
         if len(nodeSelectorTermsExpressions) > 0:
             setattr(self, 'extra_pod_config', {
@@ -366,6 +382,11 @@ class MySpawner(KubeSpawner):
                     'claimName': 'jupyterlab-cephfs-' + cephfs_pvc_users[self.user.name]
                 }
             })
+
+        if formdata.get('timeout', [0])[0]:
+            self.http_timeout=int(formdata.get('timeout', [0])[0])
+        else:
+            self.http_timeout = 1200
 
         return options
 
@@ -508,7 +529,7 @@ c.MySpawner.environment = {
     'GIT_PYTHON_REFRESH': 'quiet',
 }
 c.MySpawner.pre_spawn_hook = pre_spawn_hook
-c.MySpawner.http_timeout = 1200
+# c.MySpawner.http_timeout = 1200
 c.MySpawner.auth_state_hook = auth_state_hook
 c.MySpawner.remove = True  # Remove containers once they are stopped
 c.MySpawner.profile_list = copy.deepcopy(original_profile_list)
