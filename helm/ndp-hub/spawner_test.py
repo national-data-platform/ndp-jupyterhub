@@ -155,7 +155,7 @@ class MySpawner(KubeSpawner):
 
 
                     <label for="gpus">GPUs</label>
-                    <input class="form-control input" type="number" name="gpus" value="0" min="0" max="20"/>
+                    <input class="form-control input" type="number" name="gpus" value="0" min="0" max="4"/>
                     <br/>
                     <label for="ram">Cores</label>
                     <input class="form-control input" type="number" name="cores" value="1" min="0" max="96"/>
@@ -295,13 +295,7 @@ class MySpawner(KubeSpawner):
             'key': 'kubernetes.io/arch',
             'operator': 'In',
             'values': [formdata.get('arch', [0])[0]]
-        },
-        # {
-        #     'key': 'kubernetes.io/hostname',
-        #     'operator': 'In',
-        #     'values': ['k8s-bharadia-01.sdsc.optiputer.net']
-        # },
-        ]
+        }]
 
         tolerations = []
         if formdata.get('arch', [0])[0] == "arm64":
@@ -518,7 +512,7 @@ def pre_spawn_hook(spawner):
 
 c.JupyterHub.template_paths = ['/etc/jupyterhub/custom']
 c.JupyterHub.spawner_class = MySpawner
-c.JupyterHub.allow_named_servers = True
+c.JupyterHub.allow_named_servers = False
 c.JupyterHub.authenticator_class = MyAuthenticator
 
 # check only once per day not to block single-user
