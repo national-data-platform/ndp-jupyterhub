@@ -30,11 +30,11 @@ spec:
               mountPath: /data
           resources:
             limits:
-              cpu: "1"
-              memory: 8Gi
+              cpu: "8"
+              memory: 32Gi
             requests:
-              cpu: "1"
-              memory: 8Gi
+              cpu: "8"
+              memory: 32Gi
       volumes:
         - name: neo4jdata
           persistentVolumeClaim:
@@ -72,11 +72,11 @@ spec:
               mountPath: /data
           resources:
             limits:
-              cpu: "1"
-              memory: 8Gi
+              cpu: "8"
+              memory: 32Gi
             requests:
-              cpu: "1"
-              memory: 8Gi
+              cpu: "8"
+              memory: 32Gi
       volumes:
         - name: neo4jdata
           persistentVolumeClaim:
@@ -114,11 +114,11 @@ spec:
               mountPath: /data
           resources:
             limits:
-              cpu: "1"
-              memory: 8Gi
+              cpu: "8"
+              memory: 32Gi
             requests:
-              cpu: "1"
-              memory: 8Gi
+              cpu: "8"
+              memory: 32Gi
       volumes:
         - name: neo4jdata
           persistentVolumeClaim:
@@ -156,11 +156,11 @@ spec:
               mountPath: /data
           resources:
             limits:
-              cpu: "1"
-              memory: 8Gi
+              cpu: "8"
+              memory: 32Gi
             requests:
-              cpu: "1"
-              memory: 8Gi
+              cpu: "8"
+              memory: 32Gi
       volumes:
         - name: neo4jdata
           persistentVolumeClaim:
@@ -198,11 +198,11 @@ spec:
               mountPath: /data
           resources:
             limits:
-              cpu: "1"
-              memory: 8Gi
+              cpu: "8"
+              memory: 32Gi
             requests:
-              cpu: "1"
-              memory: 8Gi
+              cpu: "8"
+              memory: 32Gi
       volumes:
         - name: neo4jdata
           persistentVolumeClaim:
@@ -240,11 +240,11 @@ spec:
               mountPath: /data
           resources:
             limits:
-              cpu: "1"
-              memory: 8Gi
+              cpu: "8"
+              memory: 32Gi
             requests:
-              cpu: "1"
-              memory: 8Gi
+              cpu: "8"
+              memory: 32Gi
       volumes:
         - name: neo4jdata
           persistentVolumeClaim:
