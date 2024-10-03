@@ -500,8 +500,6 @@ async def get_user_groups(token):
 async def pre_spawn_hook(spawner):
     config.load_incluster_config()
     api = client.CoreV1Api()
-    # Reset the profile list to ensure custom image is not retained
-    # print(f'10. Resetting profile list..')
     spawner._profile_list = copy.deepcopy(original_profile_list)
 
     # pip install jupyterlab-launchpad
@@ -538,53 +536,58 @@ async def pre_spawn_hook(spawner):
     try:
         groups = await get_user_groups(spawner.access_token)
         if groups:
+            id_lst = []
             init_containers = []
             for group in groups:
-                group = group.lower()
-                pvc_name = f'claim-ndpgroups-{group}'
-                volume_name = f'volume-ndpgroups-{group}'  
-                try:
-                    api.read_namespaced_persistent_volume_claim(name=pvc_name, namespace=NAMESPACE)
-                except ApiException as e:
-                    if e.status == 404:
-                        pvc_manifest = {
-                            'apiVersion': 'v1',
-                            'kind': 'PersistentVolumeClaim',
-                            'metadata': {'name': pvc_name, 'namespace': NAMESPACE},
-                            'spec': {
-                                'accessModes': ['ReadWriteMany'],
-                                'resources': {'requests': {'storage': '1Gi'}},
-                                'storageClassName': 'rook-cephfs-central'
+                group_id = group["subgroup_id"]
+                if group_id not in id_lst:
+                    id_lst.append(group_id)
+                    id_short = group_id[0:13]
+                    group_name = group["group_name"]
+                    pvc_name = f'claim-ndpgroups-{id_short}'
+                    volume_name = f'volume-ndpgroups-{id_short}'  
+                    try:
+                        api.read_namespaced_persistent_volume_claim(name=pvc_name, namespace=NAMESPACE)
+                    except ApiException as e:
+                        if e.status == 404:
+                            pvc_manifest = {
+                                'apiVersion': 'v1',
+                                'kind': 'PersistentVolumeClaim',
+                                'metadata': {'name': pvc_name, 'namespace': NAMESPACE},
+                                'spec': {
+                                    'accessModes': ['ReadWriteMany'],
+                                    'resources': {'requests': {'storage': '1Gi'}},
+                                    'storageClassName': 'rook-cephfs-central'
+                                }
                             }
-                        }
-                        api.create_namespaced_persistent_volume_claim(namespace=NAMESPACE, body=pvc_manifest)
-                spawner.volume_mounts.append({
-                    'name': volume_name,
-                    'mountPath': f'/home/jovyan/work/{group}-Storage/'
-                })
-                spawner.volumes.append({
-                    'name': volume_name,
-                    'persistentVolumeClaim': {'claimName': pvc_name}
-                })
-                init_containers.append({
-                    'name': f'volume-permissions-{group}',
-                    'image': 'busybox',
-                    'command': ['sh', '-c', f'chmod 777 /home/jovyan/work/{group}-Storage/'],
-                    'volumeMounts': [
-                        {
-                            'mountPath': f'/home/jovyan/work/{group}-Storage/',
-                            'name': volume_name  
-                        }
-                    ]
-                })
-                spawner.extra_volumes = spawner.volumes
-                spawner.extra_volume_mounts = spawner.volume_mounts
-        
-                # Attach init containers to extra pod configuration
-                spawner.extra_pod_config = spawner.extra_pod_config or {}
-                spawner.extra_pod_config.setdefault('initContainers', []).extend(init_containers)
+                            api.create_namespaced_persistent_volume_claim(namespace=NAMESPACE, body=pvc_manifest)
+                    spawner.volume_mounts.append({
+                        'name': volume_name,
+                        'mountPath': f'/home/jovyan/work/{group}-Storage/'
+                    })
+                    spawner.volumes.append({
+                        'name': volume_name,
+                        'persistentVolumeClaim': {'claimName': pvc_name}
+                    })
+                    init_containers.append({
+                        'name': f'volume-permissions-{id_short}',
+                        'image': 'busybox',
+                        'command': ['sh', '-c', f'chmod 777 /home/jovyan/work/{group_name}-Storage/'],
+                        'volumeMounts': [
+                            {
+                                'mountPath': f'/home/jovyan/work/{group_name}-Storage/',
+                                'name': volume_name  
+                            }
+                        ]
+                    })
+                    spawner.extra_volumes = spawner.volumes
+                    spawner.extra_volume_mounts = spawner.volume_mounts
+            
+                    # Attach init containers to extra pod configuration
+                    spawner.extra_pod_config = spawner.extra_pod_config or {}
+                    spawner.extra_pod_config.setdefault('initContainers', []).extend(init_containers)
 
-                spawner.environment.update({'USER_GROUPS': ','.join(groups)})
+                    spawner.environment.update({'USER_GROUPS': ','.join(groups)})
     except:
         pass
 
