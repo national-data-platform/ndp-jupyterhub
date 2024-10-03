@@ -1,6 +1,7 @@
 from tornado.web import HTTPError
 from kubespawner import KubeSpawner
 from kubernetes import client, config
+from kubernetes.client.exceptions import ApiException
 import requests
 import logging
 from oauthenticator.generic import GenericOAuthenticator
@@ -8,6 +9,10 @@ from secrets import token_hex
 import copy
 import os
 import base64
+import http.client
+import socket
+import json
+
 
 def use_k8s_secret(namespace, secret_name):
     config.load_incluster_config()
@@ -231,7 +236,8 @@ class MySpawner(KubeSpawner):
                     <p><i><b>Note:</b> /home/jovyan/work/_User-Persistent-Storage_CephBlock_ is the persistent volume directory, make sure to save your work in it, otherwise it will be deleted</p>
                     """
 
-    def options_from_form(self, formdata):
+    
+    async def options_from_form(self, formdata):
         # print(f'1. self._profile_list: {self._profile_list}')
         cephfs_pvc_users = {}
 
@@ -360,8 +366,7 @@ class MySpawner(KubeSpawner):
                     'claimName': 'claim-ceph-bw-{username}'
                 }
             },
-        ]
-
+        ]    
         if formdata.get('shm', [0])[0]:
             self.volume_mounts.append({
                 'name': 'dshm',
@@ -383,6 +388,8 @@ class MySpawner(KubeSpawner):
                     'claimName': 'jupyterlab-cephfs-' + cephfs_pvc_users[self.user.name]
                 }
             })
+        self.extra_volumes = self.volumes
+        self.extra_volume_mounts = self.volume_mounts
 
         if formdata.get('timeout', [0])[0]:
             self.http_timeout=int(formdata.get('timeout', [0])[0])
@@ -474,8 +481,25 @@ def auth_state_hook(spawner, auth_state):
     spawner.environment.update({'ACCESS_TOKEN': spawner.access_token})
     spawner.environment.update({'REFRESH_TOKEN': spawner.refresh_token})
 
-#
-def pre_spawn_hook(spawner):
+## Functions to retrieve user groups
+async def get_user_groups(token):
+    try:
+        conn = http.client.HTTPSConnection("ndp-test.sdsc.edu")
+        headers = {
+            'Authorization': f'Bearer {token}',
+            'Content-Type': 'application/json'}
+        conn.request("GET", "/workspaces-api/group", headers=headers)
+        response = conn.getresponse()
+        if response.status != 200:
+            return []
+        data = json.loads(response.read().decode("utf-8"))
+        return data
+    except (http.client.HTTPException, TimeoutError, json.JSONDecodeError, socket.timeout):
+        return []
+
+async def pre_spawn_hook(spawner):
+    config.load_incluster_config()
+    api = client.CoreV1Api()
     # Reset the profile list to ensure custom image is not retained
     # print(f'10. Resetting profile list..')
     spawner._profile_list = copy.deepcopy(original_profile_list)
@@ -509,6 +533,60 @@ def pre_spawn_hook(spawner):
     spawner.environment.update({"CKAN_API_URL": CKAN_API_URL})
     spawner.environment.update({"WORKSPACE_API_URL": WORKSPACE_API_URL})
     spawner.environment.update({"REFRESH_EVERY_SECONDS": str(REFRESH_EVERY_SECONDS)})
+
+
+    try:
+        groups = await get_user_groups(spawner.access_token)
+        if groups:
+            init_containers = []
+            for group in groups:
+                group = group.lower()
+                pvc_name = f'claim-ndpgroups-{group}'
+                volume_name = f'volume-ndpgroups-{group}'  
+                try:
+                    api.read_namespaced_persistent_volume_claim(name=pvc_name, namespace=NAMESPACE)
+                except ApiException as e:
+                    if e.status == 404:
+                        pvc_manifest = {
+                            'apiVersion': 'v1',
+                            'kind': 'PersistentVolumeClaim',
+                            'metadata': {'name': pvc_name, 'namespace': NAMESPACE},
+                            'spec': {
+                                'accessModes': ['ReadWriteMany'],
+                                'resources': {'requests': {'storage': '1Gi'}},
+                                'storageClassName': 'rook-cephfs-central'
+                            }
+                        }
+                        api.create_namespaced_persistent_volume_claim(namespace=NAMESPACE, body=pvc_manifest)
+                spawner.volume_mounts.append({
+                    'name': volume_name,
+                    'mountPath': f'/home/jovyan/work/{group}-Storage/'
+                })
+                spawner.volumes.append({
+                    'name': volume_name,
+                    'persistentVolumeClaim': {'claimName': pvc_name}
+                })
+                init_containers.append({
+                    'name': f'volume-permissions-{group}',
+                    'image': 'busybox',
+                    'command': ['sh', '-c', f'chmod 777 /home/jovyan/work/{group}-Storage/'],
+                    'volumeMounts': [
+                        {
+                            'mountPath': f'/home/jovyan/work/{group}-Storage/',
+                            'name': volume_name  
+                        }
+                    ]
+                })
+                spawner.extra_volumes = spawner.volumes
+                spawner.extra_volume_mounts = spawner.volume_mounts
+        
+                # Attach init containers to extra pod configuration
+                spawner.extra_pod_config = spawner.extra_pod_config or {}
+                spawner.extra_pod_config.setdefault('initContainers', []).extend(init_containers)
+
+                spawner.environment.update({'USER_GROUPS': ','.join(groups)})
+    except:
+        pass
 
 c.JupyterHub.template_paths = ['/etc/jupyterhub/custom']
 c.JupyterHub.spawner_class = MySpawner
