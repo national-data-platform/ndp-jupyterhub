@@ -532,11 +532,8 @@ async def pre_spawn_hook(spawner):
     spawner.environment.update({"WORKSPACE_API_URL": WORKSPACE_API_URL})
     spawner.environment.update({"REFRESH_EVERY_SECONDS": str(REFRESH_EVERY_SECONDS)})
 
-
     try:
         groups = await get_user_groups(spawner.access_token)
-        print(groups)
-        print(type(groups))
         if groups:
             id_lst = []
             init_containers = []
@@ -544,15 +541,12 @@ async def pre_spawn_hook(spawner):
                 group_id = group['subgroup_id']
                 if group_id not in id_lst:
                     id_lst.append(group_id)
-                    print(f"Group list: {id_lst}")
                     id_short = group_id[0:13]
                     group_name = group['group_name']
                     pvc_name = f'claim-ndpgroups-{id_short}'
                     volume_name = f'volume-ndpgroups-{id_short}'  
                     try:
                         api.read_namespaced_persistent_volume_claim(name=pvc_name, namespace=NAMESPACE)
-                        print("&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&")
-                        print("pvc-name")
                     except ApiException as e:
                         print(e)
                         if e.status == 404:
@@ -563,7 +557,7 @@ async def pre_spawn_hook(spawner):
                                 'metadata': {'name': pvc_name, 'namespace': NAMESPACE},
                                 'spec': {
                                     'accessModes': ['ReadWriteMany'],
-                                    'resources': {'requests': {'storage': '1Gi'}},
+                                    'resources': {'requests': {'storage': '50Gi'}},
                                     'storageClassName': 'rook-cephfs-central'
                                 }
                             }
@@ -575,7 +569,7 @@ async def pre_spawn_hook(spawner):
                     logging.info(f"Adding volume and mount for group {group_name}")
                     spawner.volume_mounts.append({
                         'name': volume_name,
-                        'mountPath': f'/home/jovyan/work/{group_name}-Storage/'
+                        'mountPath': f'/home/jovyan/work/{group_name}-Shared-Storage/'
                     })
                     spawner.volumes.append({
                         'name': volume_name,
@@ -584,10 +578,10 @@ async def pre_spawn_hook(spawner):
                     init_containers.append({
                         'name': f'volume-permissions-{id_short}',
                         'image': 'busybox',
-                        'command': ['sh', '-c', f'chmod 777 /home/jovyan/work/{group_name}-Storage/'],
+                        'command': ['sh', '-c', f'chmod 777 /home/jovyan/work/{group_name}-Shared-Storage/'],
                         'volumeMounts': [
                             {
-                                'mountPath': f'/home/jovyan/work/{group_name}-Storage/',
+                                'mountPath': f'/home/jovyan/work/{group_name}-Shared-Storage/',
                                 'name': volume_name  
                             }
                         ]
@@ -608,7 +602,6 @@ c.JupyterHub.authenticator_class = MyAuthenticator
 # check only once per day not to block single-user
 c.MyAuthenticator.auth_refresh_age = 86300
 c.MyAuthenticator.refresh_pre_spawn = True
-
 
 c.MySpawner.environment = {
     'AWS_ACCESS_KEY_ID': aws_access_key_id,
