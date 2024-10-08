@@ -535,21 +535,28 @@ async def pre_spawn_hook(spawner):
 
     try:
         groups = await get_user_groups(spawner.access_token)
+        print(groups)
+        print(type(groups))
         if groups:
             id_lst = []
             init_containers = []
             for group in groups:
-                group_id = group["subgroup_id"]
+                group_id = group['subgroup_id']
                 if group_id not in id_lst:
                     id_lst.append(group_id)
+                    print(f"Group list: {id_lst}")
                     id_short = group_id[0:13]
-                    group_name = group["group_name"]
+                    group_name = group['group_name']
                     pvc_name = f'claim-ndpgroups-{id_short}'
                     volume_name = f'volume-ndpgroups-{id_short}'  
                     try:
                         api.read_namespaced_persistent_volume_claim(name=pvc_name, namespace=NAMESPACE)
+                        print("&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&")
+                        print("pvc-name")
                     except ApiException as e:
+                        print(e)
                         if e.status == 404:
+                            print(f"Creating PVC {pvc_name}")
                             pvc_manifest = {
                                 'apiVersion': 'v1',
                                 'kind': 'PersistentVolumeClaim',
@@ -561,9 +568,14 @@ async def pre_spawn_hook(spawner):
                                 }
                             }
                             api.create_namespaced_persistent_volume_claim(namespace=NAMESPACE, body=pvc_manifest)
+                            print(f"PVC {pvc_name} created successfully.")
+                        else:
+                            print(f"Error creating PVC {pvc_name}: {e}!!!!!!")
+                            raise
+                    logging.info(f"Adding volume and mount for group {group_name}")
                     spawner.volume_mounts.append({
                         'name': volume_name,
-                        'mountPath': f'/home/jovyan/work/{group}-Storage/'
+                        'mountPath': f'/home/jovyan/work/{group_name}-Storage/'
                     })
                     spawner.volumes.append({
                         'name': volume_name,
@@ -580,14 +592,11 @@ async def pre_spawn_hook(spawner):
                             }
                         ]
                     })
-                    spawner.extra_volumes = spawner.volumes
-                    spawner.extra_volume_mounts = spawner.volume_mounts
-            
-                    # Attach init containers to extra pod configuration
-                    spawner.extra_pod_config = spawner.extra_pod_config or {}
-                    spawner.extra_pod_config.setdefault('initContainers', []).extend(init_containers)
-
-                    spawner.environment.update({'USER_GROUPS': ','.join(groups)})
+            spawner.extra_volumes = spawner.volumes
+            spawner.extra_volume_mounts = spawner.volume_mounts
+            spawner.extra_pod_config = spawner.extra_pod_config or {}
+            spawner.extra_pod_config.setdefault('initContainers', []).extend(init_containers)
+            spawner.environment.update({'USER_GROUPS': ','.join(groups)})
     except:
         pass
 
