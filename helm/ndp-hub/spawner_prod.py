@@ -29,7 +29,7 @@ def use_k8s_secret(namespace, secret_name):
 NAMESPACE = 'ndp'
 CLIENT_ID, CLIENT_SECRET = use_k8s_secret(namespace=NAMESPACE, secret_name='jupyterhub-secret')
 KEYCLOAK_URL = "https://idp.nationaldataplatform.org"
-NDP_EXT_VERSION = '0.0.3'
+NDP_EXT_VERSION = '0.0.4'
 
 USER_PERSISTENT_STORAGE_FOLDER = "_User-Persistent-Storage_CephBlock_"
 
@@ -325,7 +325,7 @@ class MySpawner(KubeSpawner):
             nodeSelectorTermsExpressions.append({
                 'key': 'topology.kubernetes.io/zone',
                 'operator': 'In',
-                'values': ['ucsd-nrp']
+                'values': ['ucsd-nrp', 'ucsd-sdsc']
             })
 
         if len(nodeSelectorTermsExpressions) > 0:

@@ -326,7 +326,7 @@ class MySpawner(KubeSpawner):
                 'key': 'topology.kubernetes.io/zone',
                 'operator': 'In',
                 # 'values': ['ucsd', 'ucsd-sdsc', 'ucsd-nrp']
-                'values': ['ucsd-nrp']
+                'values': ['ucsd-nrp', 'ucsd-sdsc']
             })
 
         if len(nodeSelectorTermsExpressions) > 0:
