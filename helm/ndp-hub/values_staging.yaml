@@ -7,6 +7,8 @@
 
 jupyterhub:
   hub:
+    extraEnv:
+      JUPYTERHUB_METRICS_API_KEY: 93eb9f05da5b5e0605a035a801a1ccff
     existingSecret: jupyterhub-secret
     config:
       GenericOAuthenticator:
@@ -16,21 +18,18 @@ jupyterhub:
         userdata_url: https://idp-test.nationaldataplatform.org/realms/NDP/protocol/openid-connect/userinfo
         logout_redirect_url: https://idp-test.nationaldataplatform.org/realms/NDP/protocol/openid-connect/logout?redirect_uri=https://ndp-staging-jupyterhub.nrp-nautilus.io/
         login_service: keycloak
-        username_claim: email
-        username_key: preferred_username
+        username_claim: preferred_username
         userdata_params:
           state: state
         allow_all: False
         allowed_groups: ["jhub_user"]
+        auto_login: True
+        enable_auth_state: True
+        admin_users: [ "segurvich@ucsd.edu" ]
         scope:
           - openid
           - profile
-      Authenticator:
-        auto_login: True
-        enable_auth_state: True
-        admin_users: ["i3perez@ucsd.edu","segurvich@ucsd.edu"]
       JupyterHub:
-        admin_access: true
         authenticator_class: generic-oauth
     service:
       type: ClusterIP
@@ -62,7 +61,7 @@ jupyterhub:
         args:
           - clone
           - --single-branch
-          - --branch=jupyter-templates-test
+          - --branch=main
           - --depth=1
           - --
           - https://github.com/national-data-platform/jupyter-templates.git

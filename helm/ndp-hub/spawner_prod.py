@@ -325,6 +325,7 @@ class MySpawner(KubeSpawner):
             nodeSelectorTermsExpressions.append({
                 'key': 'topology.kubernetes.io/zone',
                 'operator': 'In',
+                # 'values': ['ucsd', 'ucsd-sdsc', 'ucsd-nrp']
                 'values': ['ucsd-nrp', 'ucsd-sdsc']
             })
 
@@ -360,7 +361,6 @@ class MySpawner(KubeSpawner):
                 }
             },
         ]
-
         if formdata.get('shm', [0])[0]:
             self.volume_mounts.append({
                 'name': 'dshm',
@@ -513,11 +513,30 @@ c.JupyterHub.template_paths = ['/etc/jupyterhub/custom']
 c.JupyterHub.spawner_class = MySpawner
 c.JupyterHub.allow_named_servers = False
 c.JupyterHub.authenticator_class = MyAuthenticator
+c.JupyterHub.services = [
+{
+    "name": "service-prometheus",
+    "api_token": os.environ["JUPYTERHUB_METRICS_API_KEY"]
+},
+]
+
+# Add a service role to scrape prometheus metrics
+c.JupyterHub.load_roles = [
+{
+    "name": "service-metrics-role",
+    "description": "access metrics",
+    "scopes": [
+        "read:metrics",
+    ],
+    "services": [
+        "service-prometheus",
+    ],
+}
+]
 
 # check only once per day not to block single-user
 c.MyAuthenticator.auth_refresh_age = 86300
 c.MyAuthenticator.refresh_pre_spawn = True
-
 
 c.MySpawner.environment = {
     'AWS_ACCESS_KEY_ID': aws_access_key_id,
@@ -531,5 +550,5 @@ c.MySpawner.environment = {
 c.MySpawner.pre_spawn_hook = pre_spawn_hook
 # c.MySpawner.http_timeout = 1200
 c.MySpawner.auth_state_hook = auth_state_hook
-c.MySpawner.remove = True  # Remove containers once they are stopped
+# c.MySpawner.remove = True  # Remove containers once they are stopped
 c.MySpawner.profile_list = copy.deepcopy(original_profile_list)
