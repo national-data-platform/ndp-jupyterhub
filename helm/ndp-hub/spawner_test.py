@@ -34,7 +34,7 @@ def use_k8s_secret(namespace, secret_name):
 NAMESPACE = 'ndp-test'
 CLIENT_ID, CLIENT_SECRET = use_k8s_secret(namespace=NAMESPACE, secret_name='jupyterhub-secret')
 KEYCLOAK_URL = "https://idp-test.nationaldataplatform.org"
-NDP_EXT_VERSION = '0.0.4'
+NDP_EXT_VERSION = '0.0.5'
 
 USER_PERSISTENT_STORAGE_FOLDER = "_User-Persistent-Storage_CephBlock_"
 
@@ -502,6 +502,8 @@ async def pre_spawn_hook(spawner):
     api = client.CoreV1Api()
     spawner._profile_list = copy.deepcopy(original_profile_list)
 
+    
+
     # pip install jupyterlab-launchpad
     git_creds_command0 = f"mkdir -p /home/jovyan/work/{USER_PERSISTENT_STORAGE_FOLDER}/.git"
     git_creds_command1 = f'git config --global credential.helper "store --file=/home/jovyan/work/{USER_PERSISTENT_STORAGE_FOLDER}/.git/.git-credentials"'
@@ -512,6 +514,7 @@ async def pre_spawn_hook(spawner):
 
     # Modify the spawner's start command to include the pip install
     original_cmd = spawner.cmd or ["jupyterhub-singleuser"]
+
     spawner.cmd = [
         "bash",
         "-c",
@@ -524,6 +527,7 @@ async def pre_spawn_hook(spawner):
         f"&& cd /home/jovyan/work || true "
         f"&& exec {' '.join(original_cmd)}"
     ]
+
 
     # make username available for MLflow library
     username = spawner.user.name
@@ -542,7 +546,7 @@ async def pre_spawn_hook(spawner):
                 if group_id not in id_lst:
                     id_lst.append(group_id)
                     id_short = group_id[0:13]
-                    group_name = group['group_name']
+                    group_name = group['group_name'].replace(" ", "-")
                     pvc_name = f'claim-ndpgroups-{id_short}'
                     volume_name = f'volume-ndpgroups-{id_short}'  
                     try:
@@ -557,7 +561,7 @@ async def pre_spawn_hook(spawner):
                                 'metadata': {'name': pvc_name, 'namespace': NAMESPACE},
                                 'spec': {
                                     'accessModes': ['ReadWriteMany'],
-                                    'resources': {'requests': {'storage': '50Gi'}},
+                                    'resources': {'requests': {'storage': '5Gi'}},
                                     'storageClassName': 'rook-cephfs-central'
                                 }
                             }
@@ -567,6 +571,15 @@ async def pre_spawn_hook(spawner):
                             print(f"Error creating PVC {pvc_name}: {e}!!!!!!")
                             raise
                     logging.info(f"Adding volume and mount for group {group_name}")
+                    init_containers.append({
+                        'name': f'set-permissions-{id_short}',
+                        'image': 'alpine',
+                        'command': ['sh', '-c', f'chmod -R 0777 /shared-storage/{group_name}'],
+                        'volumeMounts': [{
+                            'name': volume_name,
+                            'mountPath': f'/shared-storage/{group_name}'
+                        }]
+                    })
                     spawner.volume_mounts.append({
                         'name': volume_name,
                         'mountPath': f'/home/jovyan/work/{group_name}-Shared-Storage/'
@@ -574,17 +587,6 @@ async def pre_spawn_hook(spawner):
                     spawner.volumes.append({
                         'name': volume_name,
                         'persistentVolumeClaim': {'claimName': pvc_name}
-                    })
-                    init_containers.append({
-                        'name': f'volume-permissions-{id_short}',
-                        'image': 'busybox',
-                        'command': ['sh', '-c', f'chmod 777 /home/jovyan/work/{group_name}-Shared-Storage/'],
-                        'volumeMounts': [
-                            {
-                                'mountPath': f'/home/jovyan/work/{group_name}-Shared-Storage/',
-                                'name': volume_name  
-                            }
-                        ]
                     })
             spawner.extra_volumes = spawner.volumes
             spawner.extra_volume_mounts = spawner.volume_mounts
