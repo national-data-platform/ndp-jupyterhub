@@ -7,6 +7,9 @@
 
 jupyterhub:
   hub:
+    image:
+      name: gitlab-registry.nrp-nautilus.io/ndp/ndp-docker-images/jh
+      tag: "2.0.10"
     extraEnv:
       JUPYTERHUB_METRICS_API_KEY: 93eb9f05da5b5e0605a035a801a1ccff
     existingSecret: jupyterhub-secret

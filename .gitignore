@@ -1,3 +1,5 @@
+*/requirements.lock
+*/charts/*
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
@@ -161,3 +163,4 @@ cython_debug/
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
 /helm/ndp-hub/_values*
+/helm/ndp-hub/
