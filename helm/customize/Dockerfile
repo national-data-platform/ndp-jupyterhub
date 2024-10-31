@@ -1,6 +1,6 @@
 # docker
-# docker build ./helm/customize -f ./helm/customize/Dockerfile -t gitlab-registry.nrp-nautilus.io/ndp/ndp-docker-images/jh:2.0.9 --platform=linux/amd64
-FROM jupyterhub/k8s-hub:2.0.0
+# docker build ./helm/customize -f ./helm/customize/Dockerfile -t gitlab-registry.nrp-nautilus.io/ndp/ndp-docker-images/jh:2.0.10 --platform=linux/amd64
+FROM jupyterhub/k8s-hub:3.0.0
 #LABEL authors="sergeygurvich"
 
 #USER root

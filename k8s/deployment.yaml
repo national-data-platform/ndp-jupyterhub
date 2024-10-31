@@ -1,0 +1,252 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: neo4j-db-group-1
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: neo4j-db-group-1
+  template:
+    metadata:
+      labels:
+        app: neo4j-db-group-1
+    spec:
+      containers:
+        - name: neo4j-db-group-1
+          image: neo4j:latest
+          ports:
+            - containerPort: 7474
+              name: http
+            - containerPort: 7687
+              name: bolt
+          env:
+            - name: NEO4J_AUTH
+              value: "neo4j/e6ijw8vw"
+            - name: NEO4J_server_config_strict__validation_enabled
+              value: "false"
+          volumeMounts:
+            - name: neo4jdata
+              mountPath: /data
+          resources:
+            limits:
+              cpu: "8"
+              memory: 32Gi
+            requests:
+              cpu: "8"
+              memory: 32Gi
+      volumes:
+        - name: neo4jdata
+          persistentVolumeClaim:
+            claimName: neo4j-pvc-group-1
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: neo4j-db-group-2
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: neo4j-db-group-2
+  template:
+    metadata:
+      labels:
+        app: neo4j-db-group-2
+    spec:
+      containers:
+        - name: neo4j-db-group-2
+          image: neo4j:latest
+          ports:
+            - containerPort: 7474
+              name: http
+            - containerPort: 7687
+              name: bolt
+          env:
+            - name: NEO4J_AUTH
+              value: "neo4j/t6pniz4w"
+            - name: NEO4J_server_config_strict__validation_enabled
+              value: "false"
+          volumeMounts:
+            - name: neo4jdata
+              mountPath: /data
+          resources:
+            limits:
+              cpu: "8"
+              memory: 32Gi
+            requests:
+              cpu: "8"
+              memory: 32Gi
+      volumes:
+        - name: neo4jdata
+          persistentVolumeClaim:
+            claimName: neo4j-pvc-group-2
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: neo4j-db-group-3
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: neo4j-db-group-3
+  template:
+    metadata:
+      labels:
+        app: neo4j-db-group-3
+    spec:
+      containers:
+        - name: neo4j-db-group-3
+          image: neo4j:latest
+          ports:
+            - containerPort: 7474
+              name: http
+            - containerPort: 7687
+              name: bolt
+          env:
+            - name: NEO4J_AUTH
+              value: "neo4j/gmsnacuz"
+            - name: NEO4J_server_config_strict__validation_enabled
+              value: "false"
+          volumeMounts:
+            - name: neo4jdata
+              mountPath: /data
+          resources:
+            limits:
+              cpu: "8"
+              memory: 32Gi
+            requests:
+              cpu: "8"
+              memory: 32Gi
+      volumes:
+        - name: neo4jdata
+          persistentVolumeClaim:
+            claimName: neo4j-pvc-group-3
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: neo4j-db-group-4
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: neo4j-db-group-4
+  template:
+    metadata:
+      labels:
+        app: neo4j-db-group-4
+    spec:
+      containers:
+        - name: neo4j-db-group-4
+          image: neo4j:latest
+          ports:
+            - containerPort: 7474
+              name: http
+            - containerPort: 7687
+              name: bolt
+          env:
+            - name: NEO4J_AUTH
+              value: "neo4j/mk1yo6pt"
+            - name: NEO4J_server_config_strict__validation_enabled
+              value: "false"
+          volumeMounts:
+            - name: neo4jdata
+              mountPath: /data
+          resources:
+            limits:
+              cpu: "8"
+              memory: 32Gi
+            requests:
+              cpu: "8"
+              memory: 32Gi
+      volumes:
+        - name: neo4jdata
+          persistentVolumeClaim:
+            claimName: neo4j-pvc-group-4
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: neo4j-db-group-5
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: neo4j-db-group-5
+  template:
+    metadata:
+      labels:
+        app: neo4j-db-group-5
+    spec:
+      containers:
+        - name: neo4j-db-group-5
+          image: neo4j:latest
+          ports:
+            - containerPort: 7474
+              name: http
+            - containerPort: 7687
+              name: bolt
+          env:
+            - name: NEO4J_AUTH
+              value: "neo4j/n6v3lntk"
+            - name: NEO4J_server_config_strict__validation_enabled
+              value: "false"
+          volumeMounts:
+            - name: neo4jdata
+              mountPath: /data
+          resources:
+            limits:
+              cpu: "8"
+              memory: 32Gi
+            requests:
+              cpu: "8"
+              memory: 32Gi
+      volumes:
+        - name: neo4jdata
+          persistentVolumeClaim:
+            claimName: neo4j-pvc-group-5
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: neo4j-db-group-6
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: neo4j-db-group-6
+  template:
+    metadata:
+      labels:
+        app: neo4j-db-group-6
+    spec:
+      containers:
+        - name: neo4j-db-group-6
+          image: neo4j:latest
+          ports:
+            - containerPort: 7474
+              name: http
+            - containerPort: 7687
+              name: bolt
+          env:
+            - name: NEO4J_AUTH
+              value: "neo4j/436v68qb"
+            - name: NEO4J_server_config_strict__validation_enabled
+              value: "false"
+          volumeMounts:
+            - name: neo4jdata
+              mountPath: /data
+          resources:
+            limits:
+              cpu: "8"
+              memory: 32Gi
+            requests:
+              cpu: "8"
+              memory: 32Gi
+      volumes:
+        - name: neo4jdata
+          persistentVolumeClaim:
+            claimName: neo4j-pvc-group-6
+

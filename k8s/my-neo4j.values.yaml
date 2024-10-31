@@ -1,0 +1,27 @@
+# helm install my-neo4j-release neo4j/neo4j --namespace ndp-test -f my-neo4j.values.yaml
+#
+
+
+# helm uninstall my-neo4j-release
+# kubectl port-forward my-neo4j-release-0 7474:7474 7687:7687
+
+neo4j:
+  name: my-standalone
+  resources:
+    cpu: "0.5"
+    memory: "2Gi"
+
+  # Uncomment to set the initial password
+  password: "test1234"
+
+  # Uncomment to use enterprise edition
+  #edition: "enterprise"
+  #acceptLicenseAgreement: "yes"
+
+volumes:
+  data:
+    mode: "dynamic"
+    dynamic:
+      # * managed-csi-premium provisions premium SSD disks (recommended)
+      # * managed-csi provisions standard SSD-backed disks
+      storageClassName: rook-ceph-block
