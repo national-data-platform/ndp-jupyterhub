@@ -361,7 +361,6 @@ class MySpawner(KubeSpawner):
                 }
             },
         ]
-
         if formdata.get('shm', [0])[0]:
             self.volume_mounts.append({
                 'name': 'dshm',

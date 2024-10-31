@@ -236,7 +236,7 @@ class MySpawner(KubeSpawner):
                     <p><i><b>Note:</b> /home/jovyan/work/_User-Persistent-Storage_CephBlock_ is the persistent volume directory, make sure to save your work in it, otherwise it will be deleted</p>
                     """
 
-    
+
     async def options_from_form(self, formdata):
         # print(f'1. self._profile_list: {self._profile_list}')
         cephfs_pvc_users = {}
@@ -366,7 +366,7 @@ class MySpawner(KubeSpawner):
                     'claimName': 'claim-ceph-bw-{username}'
                 }
             },
-        ]    
+        ]
         if formdata.get('shm', [0])[0]:
             self.volume_mounts.append({
                 'name': 'dshm',
@@ -502,8 +502,6 @@ async def pre_spawn_hook(spawner):
     api = client.CoreV1Api()
     spawner._profile_list = copy.deepcopy(original_profile_list)
 
-    
-
     # pip install jupyterlab-launchpad
     git_creds_command0 = f"mkdir -p /home/jovyan/work/{USER_PERSISTENT_STORAGE_FOLDER}/.git"
     git_creds_command1 = f'git config --global credential.helper "store --file=/home/jovyan/work/{USER_PERSISTENT_STORAGE_FOLDER}/.git/.git-credentials"'
@@ -514,7 +512,6 @@ async def pre_spawn_hook(spawner):
 
     # Modify the spawner's start command to include the pip install
     original_cmd = spawner.cmd or ["jupyterhub-singleuser"]
-
     spawner.cmd = [
         "bash",
         "-c",
@@ -527,7 +524,6 @@ async def pre_spawn_hook(spawner):
         f"&& cd /home/jovyan/work || true "
         f"&& exec {' '.join(original_cmd)}"
     ]
-
 
     # make username available for MLflow library
     username = spawner.user.name
@@ -548,7 +544,7 @@ async def pre_spawn_hook(spawner):
                     id_short = group_id[0:13]
                     group_name = group['group_name'].replace(" ", "-")
                     pvc_name = f'claim-ndpgroups-{id_short}'
-                    volume_name = f'volume-ndpgroups-{id_short}'  
+                    volume_name = f'volume-ndpgroups-{id_short}'
                     try:
                         api.read_namespaced_persistent_volume_claim(name=pvc_name, namespace=NAMESPACE)
                     except ApiException as e:

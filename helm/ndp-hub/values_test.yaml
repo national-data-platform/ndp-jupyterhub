@@ -61,7 +61,7 @@ jupyterhub:
         args:
           - clone
           - --single-branch
-          - --branch=jupyter-templates-test
+          - --branch=main
           - --depth=1
           - --
           - https://github.com/national-data-platform/jupyter-templates.git
