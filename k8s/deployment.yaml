@@ -22,7 +22,7 @@ spec:
               name: bolt
           env:
             - name: NEO4J_AUTH
-              value: "neo4j/test1234"
+              value: "neo4j/e6ijw8vw"
             - name: NEO4J_server_config_strict__validation_enabled
               value: "false"
           volumeMounts:
@@ -64,7 +64,7 @@ spec:
               name: bolt
           env:
             - name: NEO4J_AUTH
-              value: "neo4j/test1234"
+              value: "neo4j/t6pniz4w"
             - name: NEO4J_server_config_strict__validation_enabled
               value: "false"
           volumeMounts:
@@ -106,7 +106,7 @@ spec:
               name: bolt
           env:
             - name: NEO4J_AUTH
-              value: "neo4j/test1234"
+              value: "neo4j/gmsnacuz"
             - name: NEO4J_server_config_strict__validation_enabled
               value: "false"
           volumeMounts:
@@ -148,7 +148,7 @@ spec:
               name: bolt
           env:
             - name: NEO4J_AUTH
-              value: "neo4j/test1234"
+              value: "neo4j/mk1yo6pt"
             - name: NEO4J_server_config_strict__validation_enabled
               value: "false"
           volumeMounts:
@@ -190,7 +190,7 @@ spec:
               name: bolt
           env:
             - name: NEO4J_AUTH
-              value: "neo4j/test1234"
+              value: "neo4j/n6v3lntk"
             - name: NEO4J_server_config_strict__validation_enabled
               value: "false"
           volumeMounts:
@@ -232,7 +232,7 @@ spec:
               name: bolt
           env:
             - name: NEO4J_AUTH
-              value: "neo4j/test1234"
+              value: "neo4j/436v68qb"
             - name: NEO4J_server_config_strict__validation_enabled
               value: "false"
           volumeMounts:
