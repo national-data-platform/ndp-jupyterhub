@@ -140,10 +140,6 @@ Our images are located at: https://gitlab.nrp-nautilus.io/ndp/ndp-docker-images/
 To be able to push or pull private Python packages, the local machine should be set up according to the instructions at https://gitlab.nrp-nautilus.io/help/user/packages/package_registry/index.
 Add authentication (https://gitlab.nrp-nautilus.io/help/user/packages/pypi_repository/index.md#authenticate-with-a-deploy-token).
 
-- **GitLab Package Registry (for PyPi packages)**.
-To be able to push or pull private Python packages, the local machine should be set up according to the instructions at https://gitlab.nrp-nautilus.io/help/user/packages/package_registry/index.
-Add authentication (https://gitlab.nrp-nautilus.io/help/user/packages/pypi_repository/index.md#authenticate-with-a-deploy-token): 
-
 Create file: ~/.pypirc
 ```
 [distutils]
