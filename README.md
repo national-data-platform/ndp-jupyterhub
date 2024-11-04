@@ -123,3 +123,32 @@ Use this [documentation](https://docs.nationalresearchplatform.org/) for compreh
        name: gitlab-registry.nrp-nautilus.io/ndp/ndp-docker-images/jh
        tag: "2.0.9"
    ```
+   
+6. All NDP docker images and Python packages(PyPi) are stored in NRP Gitlab (https://gitlab.nrp-nautilus.io/).
+- **Gitlab Container Registry (for Docker images)**. Enter your Gitlab username and personal access token:
+``
+docker login gitlab-registry.nrp-nautilus.io
+``
+Now, you should be able to push images to our Gitlab registry. For example: 
+```
+docker push gitlab-registry.nrp-nautilus.io/ndp/ndp-docker-images/jh:2.0.10
+```
+
+- **GitLab Package Registry (for PyPi packages)**.
+To be able to push or pull private Python packages, the local machine should be set up according to the instructions at https://gitlab.nrp-nautilus.io/help/user/packages/package_registry/index.
+Add authentication (https://gitlab.nrp-nautilus.io/help/user/packages/pypi_repository/index.md#authenticate-with-a-deploy-token): 
+Create file: ~/.pypirc
+```
+[distutils]
+index-servers =
+    gitlab
+
+[gitlab]
+repository = https://gitlab.nrp-nautilus.io/api/v4/projects/ndp%2Fndp-docker-images/packages/pypi
+username = <your_personal_access_token_name>
+password = <your_personal_access_token>
+```
+After that, you'll be able to push PyPi packages, so they can be installed later by standard pip command:
+```
+pip install jupyterlab-git ndp-jupyterlab-extension --index-url https://gitlab.nrp-nautilus.io/api/v4/projects/3930/packages/pypi/simple
+```
