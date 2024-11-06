@@ -31,8 +31,8 @@ https://github.com/jupyterhub/jupyterhub/tree/886ce6cbdfc00b66b45ac769e5ab2270ab
    - GenericOAuthenticator (https://oauthenticator.readthedocs.io/en/latest/reference/api/gen/oauthenticator.generic.html#)
 
 4. There are few other Jupyter dependencies in the following GIT repos:
- - https://github.com/national-data-platform/ndp-jupyterlab-extension - NDP extension for JupyterLab. It is being installed on single-user server instance each time while spawning. Defined in `spawner_env.py` files.
- - https://github.com/national-data-platform/jupyterlab-git - Special version of JupyterLab GIT extension. It was created to allow passing GIT link into GIT Clone dialog for NDP needs. It is being installed on single-user server instance each time while spawning. Defined in `spawner_env.py` files.
+ - https://github.com/national-data-platform/ndp-jupyterlab-extension - NDP extension for JupyterLab. It is being installed on single-user server container.
+ - https://github.com/national-data-platform/jupyterlab-git - Special version of JupyterLab GIT extension. It was created to allow passing GIT link into GIT Clone dialog for NDP needs. It is being installed on single-user server container.
 
 5. A number of environment variables has to be set in `.env` file, passed to `docker-compose.yaml` file and processed in `jupyterhub_config.py` in order the overall deployment to work.
 6. All NDP docker images and Python packages(PyPi) are stored in NRP Gitlab (https://gitlab.nrp-nautilus.io/).
