@@ -113,10 +113,10 @@ Use this [documentation](https://docs.nationalresearchplatform.org/) for compreh
    Note: the content notebooks and other files inside the image typically is downloaded from separate repo:
    - https://github.com/national-data-platform/jupyter-notebooks
 4. There are few other Jupyter dependencies in the following GIT repos:
- - https://github.com/national-data-platform/jupyter-templates - this is to override few UI web pages, based on this guide: https://jupyterhub.readthedocs.io/en/stable/howto/templates.html#extending-templates
+ - ~~https://github.com/national-data-platform/jupyter-templates - this is to override few UI web pages, based on this guide: https://jupyterhub.readthedocs.io/en/stable/howto/templates.html#extending-templates.~~ Note: this is not needed anymore as pics and templates are hardcoded into hub image (helm/k8s_hub_docker_image/Dockerfile).
  - https://github.com/national-data-platform/ndp-jupyterlab-extension - NDP extension for JupyterLab. It is being installed on single-user server instance each time while spawning. Defined in `spawner_env.py` files.
  - https://github.com/national-data-platform/jupyterlab-git - Special version of JupyterLab GIT extension. It was created to allow passing GIT link into GIT Clone dialog for NDP needs. It is being installed on single-user server instance each time while spawning. Defined in `spawner_env.py` files.
-5. The main JupyterHub image is customized as well to be able to serve NDP logo images. It can be modified and built from `helm/customize/Dockerfile`. In case of creating new image version, it has to be modified inside `helm/ndp-hub/values_<env>.yaml` files:
+5. The main JupyterHub image is customized as well to be able to serve NDP logo images. It can be modified and built from `helm/k8s_hub_docker_image/Dockerfile`. In case of creating new image version, it has to be modified inside `helm/ndp-hub/values_<env>.yaml` files:
    ```
    hub:
      image:
@@ -155,5 +155,6 @@ After that, you'll be able to push PyPi packages, so they can be installed later
 ```
 pip install jupyterlab-git ndp-jupyterlab-extension --index-url https://gitlab.nrp-nautilus.io/api/v4/projects/3930/packages/pypi/simple
 ```
-Our packages are located at: https://gitlab.nrp-nautilus.io/ndp/ndp-docker-images/-/packages
+
+Our packages are located at: https://gitlab.nrp-nautilus.io/ndp/ndp-docker-images/-/packages 
 

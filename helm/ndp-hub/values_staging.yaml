@@ -9,7 +9,7 @@ jupyterhub:
   hub:
     image:
       name: gitlab-registry.nrp-nautilus.io/ndp/ndp-docker-images/jh
-      tag: "2.0.10"
+      tag: "2.0.11"
     extraEnv:
       JUPYTERHUB_METRICS_API_KEY: 93eb9f05da5b5e0605a035a801a1ccff
     existingSecret: jupyterhub-secret
@@ -58,28 +58,29 @@ jupyterhub:
         memory: 512Mi
     networkPolicy:
       enabled: false
-    initContainers:
-      - name: git-clone-templates
-        image: alpine/git
-        args:
-          - clone
-          - --single-branch
-          - --branch=main
-          - --depth=1
-          - --
-          - https://github.com/national-data-platform/jupyter-templates.git
-          - /etc/jupyterhub/custom
-        securityContext:
-          runAsUser: 0
-        volumeMounts:
-          - name: custom-templates
-            mountPath: /etc/jupyterhub/custom
-    extraVolumes:
-      - name: custom-templates
-        emptyDir: { }
-    extraVolumeMounts:
-      - name: custom-templates
-        mountPath: /etc/jupyterhub/custom
+# Commenting this out because new hub docker image has templates and pics inside it
+#    initContainers:
+#      - name: git-clone-templates
+#        image: alpine/git
+#        args:
+#          - clone
+#          - --single-branch
+#          - --branch=main
+#          - --depth=1
+#          - --
+#          - https://github.com/national-data-platform/jupyter-templates.git
+#          - /etc/jupyterhub/custom
+#        securityContext:
+#          runAsUser: 0
+#        volumeMounts:
+#          - name: custom-templates
+#            mountPath: /etc/jupyterhub/custom
+#    extraVolumes:
+#      - name: custom-templates
+#        emptyDir: { }
+#    extraVolumeMounts:
+#      - name: custom-templates
+#        mountPath: /etc/jupyterhub/custom
     extraConfig:
 
       default.py: |
