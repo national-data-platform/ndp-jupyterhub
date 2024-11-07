@@ -28,7 +28,7 @@ network_name = os.environ["DOCKER_NETWORK_NAME"]
 c.Authenticator.enable_auth_state = True
 c.DockerSpawner.use_internal_ip = True
 c.DockerSpawner.network_name = network_name
-c.DockerSpawner.allowed_images = ["quay.io/jupyter/base-notebook:latest", "quay.io/jupyter/minimal-notebook:latest"]
+c.DockerSpawner.allowed_images = ["quay.io/jupyter/minimal-notebook:latest", "quay.io/jupyter/r-notebook:latest"]
 
 # Force the proxy to only listen to connections to 127.0.0.1 (on port proxy_port)
 # proxy_port = os.environ["JUPYTERHUB_PROXY_PORT"]
