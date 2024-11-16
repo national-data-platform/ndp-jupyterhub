@@ -125,6 +125,14 @@ original_profile_list = [
             'image': 'gitlab-registry.nrp-nautilus.io/ndp/ndp-docker-images/jhub-spawn:noaa_goes_v0.0.0.3',
         }
     },
+    {
+        'display_name': "NOAA-SAGE-EARTHSCOPE Starter Codes",
+        'slug': "10",
+        'default': False,
+        'kubespawner_override': {
+            'image': 'gitlab-registry.nrp-nautilus.io/ndp/ndp-docker-images/jhub-spawn:utah_demos_0.0.0.1',
+        }
+    },
 ]
 
 class MySpawner(KubeSpawner):
