@@ -29,7 +29,7 @@ def use_k8s_secret(namespace, secret_name):
 NAMESPACE = 'ndp'
 CLIENT_ID, CLIENT_SECRET = use_k8s_secret(namespace=NAMESPACE, secret_name='jupyterhub-secret')
 KEYCLOAK_URL = "https://idp.nationaldataplatform.org"
-NDP_EXT_VERSION = '0.0.4'
+NDP_EXT_VERSION = '0.0.5'
 
 USER_PERSISTENT_STORAGE_FOLDER = "_User-Persistent-Storage_CephBlock_"
 
@@ -123,6 +123,14 @@ original_profile_list = [
         'default': False,
         'kubespawner_override': {
             'image': 'gitlab-registry.nrp-nautilus.io/ndp/ndp-docker-images/jhub-spawn:noaa_goes_v0.0.0.3',
+        }
+    },
+    {
+        'display_name': "NOAA-SAGE-EARTHSCOPE Starter Codes",
+        'slug': "10",
+        'default': False,
+        'kubespawner_override': {
+            'image': 'gitlab-registry.nrp-nautilus.io/ndp/ndp-docker-images/jhub-spawn:utah_demos_0.0.0.1',
         }
     },
 ]

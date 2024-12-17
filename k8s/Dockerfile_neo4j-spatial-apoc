@@ -1,0 +1,23 @@
+FROM neo4j:latest
+
+ENV NEO4J_apoc_export_file_enabled=true
+ENV NEO4J_apoc_import_file_enabled=true
+ENV NEO4J_apoc_import_file_use__neo4j__config=true
+ENV NEO4J_PLUGINS='["apoc"]'
+ENV NEO4J_dbms_security_procedures_unrestricted='apoc.*,spatial.*'
+
+ENV SPATIAL_VERSION=5.20.0
+
+USER root
+RUN apt-get update && apt-get install -y curl \
+    && mkdir -p /plugins \
+    && chown -R 7474:7474 /plugins \
+    && curl -L https://github.com/neo4j-contrib/spatial/releases/download/${SPATIAL_VERSION}/neo4j-spatial-${SPATIAL_VERSION}-server-plugin.jar -o /plugins/neo4j-spatial-${SPATIAL_VERSION}-server-plugin.jar \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN chown -R 7474:7474 /data
+
+USER 7474:7474
+
+EXPOSE 7474 7687
