@@ -11,15 +11,15 @@ jupyterhub:
       name: gitlab-registry.nrp-nautilus.io/ndp/ndp-docker-images/jh
       tag: "2.0.11"
     extraEnv:
-      JUPYTERHUB_METRICS_API_KEY: 93eb9f05da5b5e0605a035a801a1ccff
+      JUPYTERHUB_METRICS_API_KEY: a81e4f556c8f414df20e6294543451fc
     existingSecret: jupyterhub-secret
     config:
       GenericOAuthenticator:
         oauth_callback_url: https://ndp-staging-jupyterhub.nrp-nautilus.io/hub/oauth_callback
-        authorize_url: https://idp-test.nationaldataplatform.org/realms/NDP/protocol/openid-connect/auth
-        token_url: https://idp-test.nationaldataplatform.org/realms/NDP/protocol/openid-connect/token
-        userdata_url: https://idp-test.nationaldataplatform.org/realms/NDP/protocol/openid-connect/userinfo
-        logout_redirect_url: https://idp-test.nationaldataplatform.org/realms/NDP/protocol/openid-connect/logout?redirect_uri=https://ndp-staging-jupyterhub.nrp-nautilus.io/
+        authorize_url: https://idp.nationaldataplatform.org/realms/NDP/protocol/openid-connect/auth
+        token_url: https://idp.nationaldataplatform.org/realms/NDP/protocol/openid-connect/token
+        userdata_url: https://idp.nationaldataplatform.org/realms/NDP/protocol/openid-connect/userinfo
+        logout_redirect_url: https://idp.nationaldataplatform.org/realms/NDP/protocol/openid-connect/logout?redirect_uri=https://ndp-staging-jupyterhub.nrp-nautilus.io/
         login_service: keycloak
         username_claim: preferred_username
         userdata_params:

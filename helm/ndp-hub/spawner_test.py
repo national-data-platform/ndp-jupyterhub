@@ -34,7 +34,7 @@ def use_k8s_secret(namespace, secret_name):
 NAMESPACE = 'ndp-test'
 CLIENT_ID, CLIENT_SECRET = use_k8s_secret(namespace=NAMESPACE, secret_name='jupyterhub-secret')
 KEYCLOAK_URL = "https://idp-test.nationaldataplatform.org"
-NDP_EXT_VERSION = '0.0.5'
+NDP_EXT_VERSION = '0.0.6'
 
 USER_PERSISTENT_STORAGE_FOLDER = "_User-Persistent-Storage_CephBlock_"
 
@@ -133,6 +133,14 @@ original_profile_list = [
     {
         'display_name': "NOAA-SAGE-EARTHSCOPE Starter Codes",
         'slug': "10",
+        'default': False,
+        'kubespawner_override': {
+            'image': 'gitlab-registry.nrp-nautilus.io/ndp/ndp-docker-images/jhub-spawn:utah_demos_0.0.0.1',
+        }
+    },
+    {
+        'display_name': "TESTING",
+        'slug': "11",
         'default': False,
         'kubespawner_override': {
             'image': 'gitlab-registry.nrp-nautilus.io/ndp/ndp-docker-images/jhub-spawn:utah_demos_0.0.0.1',
@@ -243,8 +251,7 @@ class MySpawner(KubeSpawner):
                     <p style="color:green;">In order to stop the server from running Jupyter Lab, go to File > Hub Control Panel > Stop Server</i></p>
                     <p><i><b>Note:</b> /home/jovyan/work/_User-Persistent-Storage_CephBlock_ is the persistent volume directory, make sure to save your work in it, otherwise it will be deleted</p>
                     """
-
-
+    
     async def options_from_form(self, formdata):
         # print(f'1. self._profile_list: {self._profile_list}')
         cephfs_pvc_users = {}
@@ -547,7 +554,9 @@ async def pre_spawn_hook(spawner):
             init_containers = []
             for group in groups:
                 group_id = group['subgroup_id']
-                if group_id not in id_lst:
+                group_type = group['type_of_entity']
+
+                if group_id not in id_lst and group_type == 'data_challenge':
                     id_lst.append(group_id)
                     id_short = group_id[0:13]
                     group_name = group['group_name'].replace(" ", "-")
