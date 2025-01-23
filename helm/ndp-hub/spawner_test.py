@@ -1,6 +1,7 @@
 from tornado.web import HTTPError
 from kubespawner import KubeSpawner
 from kubernetes import client, config
+from kubernetes.client.exceptions import ApiException
 import requests
 import logging
 from oauthenticator.generic import GenericOAuthenticator
@@ -8,6 +9,10 @@ from secrets import token_hex
 import copy
 import os
 import base64
+import http.client
+import socket
+import json
+
 
 def use_k8s_secret(namespace, secret_name):
     config.load_incluster_config()
@@ -29,7 +34,7 @@ def use_k8s_secret(namespace, secret_name):
 NAMESPACE = 'ndp-test'
 CLIENT_ID, CLIENT_SECRET = use_k8s_secret(namespace=NAMESPACE, secret_name='jupyterhub-secret')
 KEYCLOAK_URL = "https://idp-test.nationaldataplatform.org"
-NDP_EXT_VERSION = '0.0.5'
+NDP_EXT_VERSION = '0.0.6'
 
 USER_PERSISTENT_STORAGE_FOLDER = "_User-Persistent-Storage_CephBlock_"
 
@@ -128,6 +133,14 @@ original_profile_list = [
     {
         'display_name': "NOAA-SAGE-EARTHSCOPE Starter Codes",
         'slug': "10",
+        'default': False,
+        'kubespawner_override': {
+            'image': 'gitlab-registry.nrp-nautilus.io/ndp/ndp-docker-images/jhub-spawn:utah_demos_0.0.0.1',
+        }
+    },
+    {
+        'display_name': "TESTING",
+        'slug': "11",
         'default': False,
         'kubespawner_override': {
             'image': 'gitlab-registry.nrp-nautilus.io/ndp/ndp-docker-images/jhub-spawn:utah_demos_0.0.0.1',
@@ -238,8 +251,8 @@ class MySpawner(KubeSpawner):
                     <p style="color:green;">In order to stop the server from running Jupyter Lab, go to File > Hub Control Panel > Stop Server</i></p>
                     <p><i><b>Note:</b> /home/jovyan/work/_User-Persistent-Storage_CephBlock_ is the persistent volume directory, make sure to save your work in it, otherwise it will be deleted</p>
                     """
-
-    def options_from_form(self, formdata):
+    
+    async def options_from_form(self, formdata):
         # print(f'1. self._profile_list: {self._profile_list}')
         cephfs_pvc_users = {}
 
@@ -390,6 +403,8 @@ class MySpawner(KubeSpawner):
                     'claimName': 'jupyterlab-cephfs-' + cephfs_pvc_users[self.user.name]
                 }
             })
+        self.extra_volumes = self.volumes
+        self.extra_volume_mounts = self.volume_mounts
 
         if formdata.get('timeout', [0])[0]:
             self.http_timeout=int(formdata.get('timeout', [0])[0])
@@ -481,10 +496,25 @@ def auth_state_hook(spawner, auth_state):
     spawner.environment.update({'ACCESS_TOKEN': spawner.access_token})
     spawner.environment.update({'REFRESH_TOKEN': spawner.refresh_token})
 
-#
-def pre_spawn_hook(spawner):
-    # Reset the profile list to ensure custom image is not retained
-    # print(f'10. Resetting profile list..')
+## Functions to retrieve user groups
+async def get_user_groups(token):
+    try:
+        conn = http.client.HTTPSConnection("ndp-test.sdsc.edu")
+        headers = {
+            'Authorization': f'Bearer {token}',
+            'Content-Type': 'application/json'}
+        conn.request("GET", "/workspaces-api/group", headers=headers)
+        response = conn.getresponse()
+        if response.status != 200:
+            return []
+        data = json.loads(response.read().decode("utf-8"))
+        return data
+    except (http.client.HTTPException, TimeoutError, json.JSONDecodeError, socket.timeout):
+        return []
+
+async def pre_spawn_hook(spawner):
+    config.load_incluster_config()
+    api = client.CoreV1Api()
     spawner._profile_list = copy.deepcopy(original_profile_list)
 
     # pip install jupyterlab-launchpad
@@ -516,6 +546,68 @@ def pre_spawn_hook(spawner):
     spawner.environment.update({"CKAN_API_URL": CKAN_API_URL})
     spawner.environment.update({"WORKSPACE_API_URL": WORKSPACE_API_URL})
     spawner.environment.update({"REFRESH_EVERY_SECONDS": str(REFRESH_EVERY_SECONDS)})
+
+    try:
+        groups = await get_user_groups(spawner.access_token)
+        if groups:
+            id_lst = []
+            init_containers = []
+            for group in groups:
+                group_id = group['subgroup_id']
+                group_type = group['type_of_entity']
+
+                if group_id not in id_lst and group_type == 'data_challenge':
+                    id_lst.append(group_id)
+                    id_short = group_id[0:13]
+                    group_name = group['group_name'].replace(" ", "-")
+                    pvc_name = f'claim-ndpgroups-{id_short}'
+                    volume_name = f'volume-ndpgroups-{id_short}'
+                    try:
+                        api.read_namespaced_persistent_volume_claim(name=pvc_name, namespace=NAMESPACE)
+                    except ApiException as e:
+                        print(e)
+                        if e.status == 404:
+                            print(f"Creating PVC {pvc_name}")
+                            pvc_manifest = {
+                                'apiVersion': 'v1',
+                                'kind': 'PersistentVolumeClaim',
+                                'metadata': {'name': pvc_name, 'namespace': NAMESPACE},
+                                'spec': {
+                                    'accessModes': ['ReadWriteMany'],
+                                    'resources': {'requests': {'storage': '5Gi'}},
+                                    'storageClassName': 'rook-cephfs-central'
+                                }
+                            }
+                            api.create_namespaced_persistent_volume_claim(namespace=NAMESPACE, body=pvc_manifest)
+                            print(f"PVC {pvc_name} created successfully.")
+                        else:
+                            print(f"Error creating PVC {pvc_name}: {e}!!!!!!")
+                            raise
+                    logging.info(f"Adding volume and mount for group {group_name}")
+                    init_containers.append({
+                        'name': f'set-permissions-{id_short}',
+                        'image': 'alpine',
+                        'command': ['sh', '-c', f'chmod -R 0777 /shared-storage/{group_name}'],
+                        'volumeMounts': [{
+                            'name': volume_name,
+                            'mountPath': f'/shared-storage/{group_name}'
+                        }]
+                    })
+                    spawner.volume_mounts.append({
+                        'name': volume_name,
+                        'mountPath': f'/home/jovyan/work/{group_name}-Shared-Storage/'
+                    })
+                    spawner.volumes.append({
+                        'name': volume_name,
+                        'persistentVolumeClaim': {'claimName': pvc_name}
+                    })
+            spawner.extra_volumes = spawner.volumes
+            spawner.extra_volume_mounts = spawner.volume_mounts
+            spawner.extra_pod_config = spawner.extra_pod_config or {}
+            spawner.extra_pod_config.setdefault('initContainers', []).extend(init_containers)
+            spawner.environment.update({'USER_GROUPS': ','.join(groups)})
+    except:
+        pass
 
 c.JupyterHub.template_paths = ['/etc/jupyterhub/custom']
 c.JupyterHub.spawner_class = MySpawner
