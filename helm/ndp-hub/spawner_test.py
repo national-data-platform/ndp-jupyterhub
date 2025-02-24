@@ -310,7 +310,7 @@ class MySpawner(KubeSpawner):
 
         setattr(self, "mem_limit", formdata.get('ram', [0])[0] + "G")
 
-        setattr(self, "cpu_limit", float(formdata.get('cores', [0])[0]))
+        # setattr(self, "cpu_limit", float(formdata.get('cores', [0])[0]))
 
         nodeSelectorTermsExpressions = [{
             'key': 'kubernetes.io/arch',
