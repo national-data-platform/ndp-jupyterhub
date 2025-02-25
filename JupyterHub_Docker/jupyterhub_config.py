@@ -33,7 +33,7 @@ c.DockerSpawner.allowed_images = ["quay.io/jupyter/minimal-notebook:latest", "qu
 # Force the proxy to only listen to connections to 127.0.0.1 (on port proxy_port)
 # proxy_port = os.environ["JUPYTERHUB_PROXY_PORT"]
 # c.JupyterHub.bind_url = f'http://127.0.0.1:{proxy_port}'
-
+# c.JupyterHub.base_url = '/test' #change this for reverse proxy under a subdirectory
 # Explicitly set notebook directory because we'll be mounting a volume to it.
 # Most `jupyter/docker-stacks` *-notebook images run the Notebook server as
 # user `jovyan`, and set the notebook directory to `/home/jovyan/work`.
