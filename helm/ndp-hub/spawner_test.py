@@ -179,10 +179,10 @@ class MySpawner(KubeSpawner):
                     <input class="form-control input" type="number" name="gpus" value="0" min="0" max="4"/>
                     <br/>
                     <label for="ram">Cores</label>
-                    <input class="form-control input" type="number" name="cores" value="1" min="0" max="96"/>
+                    <input class="form-control input" type="number" name="cores" value="1" min="0" max="48"/>
                     <br/>
                     <label for="ram">RAM, GB</label>
-                    <input class="form-control input" type="number" name="ram" value="16" min="1" max="512"/>
+                    <input class="form-control input" type="number" name="ram" value="16" min="1" max="256"/>
                     <br/>
                     <label for="gputype">GPU type</label>
                     <select class="form-control input" name="gputype">
