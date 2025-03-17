@@ -4,7 +4,7 @@ metadata:
   name: jupyterhub-cleanup
   namespace: ndp-test  # Change to your actual namespace
 spec:
-  schedule: "*/5 * * * *"  # Runs every 5 minutes
+  schedule: "0 */12 * * *"  # Runs every 12 hours (adjust as needed)
   jobTemplate:
     spec:
       template:
