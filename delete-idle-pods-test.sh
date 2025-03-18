@@ -19,7 +19,9 @@ do
 #    echo "$exit_status_2"
    
    if [ $exit_status_1 -eq 0 ] && [ $exit_status_2 -eq 0 ]; then
-   echo "Idle pod detected - $pod. Terminating pod."
-   kubectl delete pod $pod -n $NAMESPACE
+      echo "Idle pod detected - $pod. Terminating pod."
+      kubectl delete pod $pod -n $NAMESPACE
+   else
+      echo "$pod is active."
    fi
 done
