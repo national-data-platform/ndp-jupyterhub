@@ -583,19 +583,19 @@ async def pre_spawn_hook(spawner):
                         else:
                             print(f"Error creating PVC {pvc_name}: {e}!!!!!!")
                             raise
-                    logging.info(f"Adding volume and mount for group {group_name}")
+                    logging.info(f"Adding volume and mount for group {group_name} with id {id_short}")
                     init_containers.append({
                         'name': f'set-permissions-{id_short}',
                         'image': 'alpine',
-                        'command': ['sh', '-c', f'chmod -R 0777 /shared-storage/{group_name}'],
+                        'command': ['sh', '-c', f'chmod -R 0777 /shared-storage/{group_name}-{id_short[0:5]}'],
                         'volumeMounts': [{
                             'name': volume_name,
-                            'mountPath': f'/shared-storage/{group_name}'
+                            'mountPath': f'/shared-storage/{group_name}-{id_short[0:5]}'
                         }]
                     })
                     spawner.volume_mounts.append({
                         'name': volume_name,
-                        'mountPath': f'/home/jovyan/work/{group_name}-Shared-Storage/'
+                        'mountPath': f'/home/jovyan/work/{group_name}-Shared-Storage-{id_short[0:5]}/'
                     })
                     spawner.volumes.append({
                         'name': volume_name,
