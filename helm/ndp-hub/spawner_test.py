@@ -524,6 +524,7 @@ async def pre_spawn_hook(spawner):
     pip_install_command1 = ("pip install --upgrade jupyterlab==4.2.4 jupyter-archive==3.4.0 jupyterlab-launchpad==1.0.1")
     pip_install_command2 = ("pip install jupyterlab-git==0.50.1 --index-url https://gitlab.nrp-nautilus.io/api/v4/projects/3930/packages/pypi/simple --user")
     pip_install_command3 = (f"pip install ndp-jupyterlab-extension=={NDP_EXT_VERSION} --index-url https://gitlab.nrp-nautilus.io/api/v4/projects/3930/packages/pypi/simple --user")
+    pip_install_collab = ("pip install jupyter-collaboration --no-deps")
 
     # Modify the spawner's start command to include the pip install
     original_cmd = spawner.cmd or ["jupyterhub-singleuser"]
@@ -536,8 +537,9 @@ async def pre_spawn_hook(spawner):
         f"&& {pip_install_command1} || true "
         f"&& {pip_install_command2} || true "
         f"&& {pip_install_command3} || true "
+        f"&& {pip_install_collab} || true "
         f"&& cd /home/jovyan/work || true "
-        f"&& exec {' '.join(original_cmd)}"
+        f"&& exec {' '.join(original_cmd)} "
     ]
 
     # make username available for MLflow library
@@ -609,6 +611,7 @@ async def pre_spawn_hook(spawner):
     except:
         pass
 
+c.LabServerApp.collaborative = True
 c.JupyterHub.template_paths = ['/etc/jupyterhub/custom']
 c.JupyterHub.spawner_class = MySpawner
 c.JupyterHub.allow_named_servers = False
@@ -652,3 +655,4 @@ c.MySpawner.pre_spawn_hook = pre_spawn_hook
 c.MySpawner.auth_state_hook = auth_state_hook
 # c.MySpawner.remove = True  # Remove containers once they are stopped
 c.MySpawner.profile_list = copy.deepcopy(original_profile_list)
+
