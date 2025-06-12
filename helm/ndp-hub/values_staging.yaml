@@ -25,7 +25,7 @@ jupyterhub:
         userdata_params:
           state: state
         allow_all: False
-        allowed_groups: ["jhub_user"]
+        allowed_groups: ["jhub_user", "/jhub_user"]
         auto_login: True
         enable_auth_state: True
         admin_users: [ "segurvich@ucsd.edu" ]
