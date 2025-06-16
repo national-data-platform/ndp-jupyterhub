@@ -549,6 +549,13 @@ async def pre_spawn_hook(spawner):
     spawner.environment.update({"WORKSPACE_API_URL": WORKSPACE_API_URL})
     spawner.environment.update({"REFRESH_EVERY_SECONDS": str(REFRESH_EVERY_SECONDS)})
 
+    group_names = {group.name for group in spawner.user.groups}
+    print(f"User {spawner.user.name} belongs to groups: {group_names}")
+    if "collaborative" in group_names:
+        spawner.log.info(f"Enabling RTC for user {spawner.user.name}")
+        spawner.args.append("--LabApp.collaborative=True")
+
+
     try:
         groups = await get_user_groups(spawner.access_token)
         if groups:
@@ -611,7 +618,7 @@ async def pre_spawn_hook(spawner):
     except:
         pass
 
-c.LabServerApp.collaborative = True
+# c.LabServerApp.collaborative = True
 c.JupyterHub.template_paths = ['/etc/jupyterhub/custom']
 c.JupyterHub.spawner_class = MySpawner
 c.JupyterHub.allow_named_servers = False
@@ -622,6 +629,15 @@ c.JupyterHub.services = [
     "api_token": os.environ["JUPYTERHUB_METRICS_API_KEY"]
 },
 ]
+
+project_config = {
+    "projects": {
+        "vox": {
+            "members": ["sstrivedi@ucsd.edu", "test@test.com"]
+        }
+    }
+}
+
 
 # Add a service role to scrape prometheus metrics
 c.JupyterHub.load_roles = [
@@ -636,6 +652,40 @@ c.JupyterHub.load_roles = [
     ],
 }
 ]
+
+c.JupyterHub.load_groups = {
+    # collaborative accounts get added to this group
+    # so it's easy to see which accounts are collaboration accounts
+    "collaborative": [],
+}
+
+for project_name, project in project_config["projects"].items():
+    # get the members of the project
+    members = project.get("members", [])
+    print(f"Adding project {project_name} with members {members}")
+    # add them to a group for the project
+    c.JupyterHub.load_groups[project_name] = members
+    # define a new user for the collaboration
+    collab_user = f"{project_name}-collab"
+    # add the collab user to the 'collaborative' group
+    # so we can identify it as a collab account
+    c.JupyterHub.load_groups["collaborative"].append(collab_user)
+
+    # finally, grant members of the project collaboration group
+    # access to the collab user's server,
+    # and the admin UI so they can start/stop the server
+    c.JupyterHub.load_roles.append(
+        {
+            "name": f"collab-access-{project_name}",
+            "scopes": [
+                f"access:servers!user={collab_user}",
+                f"admin:servers!user={collab_user}",
+                "admin-ui",
+                f"list:users!user={collab_user}",
+            ],
+            "groups": [project_name],
+        }
+    )
 
 # check only once per day not to block single-user
 c.MyAuthenticator.auth_refresh_age = 86300
