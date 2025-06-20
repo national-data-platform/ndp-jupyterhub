@@ -491,6 +491,8 @@ class MyAuthenticator(GenericOAuthenticator):
 
 # pass access_token and refresh_token for communicating with NDP APIs
 def auth_state_hook(spawner, auth_state):
+    if not auth_state:
+        return
     spawner.access_token = auth_state['access_token']
     spawner.refresh_token = auth_state['refresh_token']
     spawner.environment.update({'ACCESS_TOKEN': spawner.access_token})
@@ -517,6 +519,13 @@ async def pre_spawn_hook(spawner):
     api = client.CoreV1Api()
     spawner._profile_list = copy.deepcopy(original_profile_list)
 
+    # determine collab flag
+    group_names = {group.name for group in spawner.user.groups}
+    collab_flag = "--LabApp.collaborative=True" if "collaborative" in group_names else ""
+    spawner.log.info(f"[RTC] User {spawner.user.name} is in groups: {group_names}")
+    if "collaborative" in group_names:
+        spawner.log.info(f"[RTC] Enabling RTC for user {spawner.user.name}")
+
     # pip install jupyterlab-launchpad
     git_creds_command0 = f"mkdir -p /home/jovyan/work/{USER_PERSISTENT_STORAGE_FOLDER}/.git"
     git_creds_command1 = f'git config --global credential.helper "store --file=/home/jovyan/work/{USER_PERSISTENT_STORAGE_FOLDER}/.git/.git-credentials"'
@@ -528,6 +537,7 @@ async def pre_spawn_hook(spawner):
 
     # Modify the spawner's start command to include the pip install
     original_cmd = spawner.cmd or ["jupyterhub-singleuser"]
+    full_cmd = " ".join(original_cmd + ([collab_flag] if collab_flag else []))
     spawner.cmd = [
         "bash",
         "-c",
@@ -539,7 +549,7 @@ async def pre_spawn_hook(spawner):
         f"&& {pip_install_command3} || true "
         f"&& {pip_install_collab} || true "
         f"&& cd /home/jovyan/work || true "
-        f"&& exec {' '.join(original_cmd)} "
+        f"&& exec {full_cmd} "
     ]
 
     # make username available for MLflow library
