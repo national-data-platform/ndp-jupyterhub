@@ -1,0 +1,27 @@
+FROM rocker/rstudio:4.3.1
+
+USER root
+
+# Install Python and Jupyter
+RUN apt-get update && apt-get install -y \
+    python3-pip \
+    python3-dev \
+    libcurl4-openssl-dev \
+    libssl-dev \
+    git && \
+    pip3 install --no-cache-dir \
+    jupyterlab==4.2.4 \
+    jupyter-rsession-proxy \
+    requests && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Allow jovyan user to sudo without password (optional)
+RUN usermod -aG sudo rstudio && \
+    echo 'rstudio ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
+
+# Set working directory
+WORKDIR /home/rstudio
+
+USER rstudio
+
+#docker build ./images -f ./images/Dockerfile_rstudio -t gitlab-registry.nrp-nautilus.io/ndp/ndp-docker-images/jhub-spawn:rstudio_v0.0.1 --platform=linux/amd64 --no-cache

@@ -139,11 +139,12 @@ original_profile_list = [
         }
     },
     {
-        'display_name': "TESTING",
+        'display_name': "RStudio",
         'slug': "11",
         'default': False,
         'kubespawner_override': {
-            'image': 'gitlab-registry.nrp-nautilus.io/ndp/ndp-docker-images/jhub-spawn:utah_demos_0.0.0.1',
+            'image': 'gitlab-registry.nrp-nautilus.io/ndp/ndp-docker-images/jhub-spawn:rstudio_v0.0.1',
+            'default_url': '/rstudio'
         }
     },
 ]
@@ -525,8 +526,16 @@ async def pre_spawn_hook(spawner):
     pip_install_command2 = ("pip install jupyterlab-git==0.50.1 --index-url https://gitlab.nrp-nautilus.io/api/v4/projects/3930/packages/pypi/simple --user")
     pip_install_command3 = (f"pip install ndp-jupyterlab-extension=={NDP_EXT_VERSION} --index-url https://gitlab.nrp-nautilus.io/api/v4/projects/3930/packages/pypi/simple --user")
 
+    image = spawner.image or ""
+    print(f"Image: {image}")
+    is_jupyter = "rstudio" not in image
+    if is_jupyter:
+        jhub_cmd = ["jupyterhub-singleuser"]
+    else:
+        jhub_cmd = []
+    original_cmd = spawner.cmd or jhub_cmd
+
     # Modify the spawner's start command to include the pip install
-    original_cmd = spawner.cmd or ["jupyterhub-singleuser"]
     spawner.cmd = [
         "bash",
         "-c",
