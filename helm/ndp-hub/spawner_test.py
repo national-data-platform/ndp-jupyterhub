@@ -521,7 +521,7 @@ async def pre_spawn_hook(spawner):
 
     # determine collab flag
     group_names = {group.name for group in spawner.user.groups}
-    collab_flag = "--LabApp.collaborative=True" if "collaborative" in group_names else ""
+    # collab_flag = "--LabApp.collaborative=True" if "collaborative" in group_names else ""
     spawner.log.info(f"[RTC] User {spawner.user.name} is in groups: {group_names}")
     if "collaborative" in group_names:
         spawner.log.info(f"[RTC] Enabling RTC for user {spawner.user.name}")
@@ -533,11 +533,11 @@ async def pre_spawn_hook(spawner):
     pip_install_command1 = ("pip install --upgrade jupyterlab==4.2.4 jupyter-archive==3.4.0 jupyterlab-launchpad==1.0.1")
     pip_install_command2 = ("pip install jupyterlab-git==0.50.1 --index-url https://gitlab.nrp-nautilus.io/api/v4/projects/3930/packages/pypi/simple --user")
     pip_install_command3 = (f"pip install ndp-jupyterlab-extension=={NDP_EXT_VERSION} --index-url https://gitlab.nrp-nautilus.io/api/v4/projects/3930/packages/pypi/simple --user")
-    pip_install_collab = ("pip install jupyter-collaboration --no-deps")
+    pip_install_collab = ("pip install jupyter-collaboration")
 
     # Modify the spawner's start command to include the pip install
     original_cmd = spawner.cmd or ["jupyterhub-singleuser"]
-    full_cmd = " ".join(original_cmd + ([collab_flag] if collab_flag else []))
+    # full_cmd = " ".join(original_cmd + ([collab_flag] if collab_flag else []))
     spawner.cmd = [
         "bash",
         "-c",
@@ -549,7 +549,7 @@ async def pre_spawn_hook(spawner):
         f"&& {pip_install_command3} || true "
         f"&& {pip_install_collab} || true "
         f"&& cd /home/jovyan/work || true "
-        f"&& exec {full_cmd} "
+        f"&& exec {' '.join(original_cmd)} "
     ]
 
     # make username available for MLflow library
@@ -559,11 +559,11 @@ async def pre_spawn_hook(spawner):
     spawner.environment.update({"WORKSPACE_API_URL": WORKSPACE_API_URL})
     spawner.environment.update({"REFRESH_EVERY_SECONDS": str(REFRESH_EVERY_SECONDS)})
 
-    group_names = {group.name for group in spawner.user.groups}
-    print(f"User {spawner.user.name} belongs to groups: {group_names}")
-    if "collaborative" in group_names:
-        spawner.log.info(f"Enabling RTC for user {spawner.user.name}")
-        spawner.args.append("--LabApp.collaborative=True")
+    # group_names = {group.name for group in spawner.user.groups}
+    # print(f"User {spawner.user.name} belongs to groups: {group_names}")
+    # if "collaborative" in group_names:
+    #     spawner.log.info(f"Enabling RTC for user {spawner.user.name}")
+    #     # spawner.args.append("--LabApp.collaborative=True")
 
 
     try:
@@ -643,7 +643,7 @@ c.JupyterHub.services = [
 project_config = {
     "projects": {
         "vox": {
-            "members": ["sstrivedi@ucsd.edu", "test@test.com"]
+            "members": ["sstrivedi@ucsd.edu", "test@ucsd.edu"]
         }
     }
 }
