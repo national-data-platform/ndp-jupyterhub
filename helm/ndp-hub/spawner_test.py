@@ -529,11 +529,15 @@ async def pre_spawn_hook(spawner):
     image = spawner.image or ""
     print(f"Image: {image}")
     is_jupyter = "rstudio" not in image
+    print(f"Is Jupyter: {is_jupyter}")
     if is_jupyter:
-        jhub_cmd = ["jupyterhub-singleuser"]
+        original_cmd = ["jupyterhub-singleuser"]
+        exec_cmd = f"exec {' '.join(original_cmd)}"
     else:
-        jhub_cmd = []
-    original_cmd = spawner.cmd or jhub_cmd
+        original_cmd = None  # keep it None so the default ENTRYPOINT runs (rserver)
+        exec_cmd = "exec /usr/lib/rstudio-server/bin/rserver --server-daemonize=0 --www-port=8787 --server-user=jovyan"
+    
+    print(f"Exec command: {exec_cmd}")
 
     # Modify the spawner's start command to include the pip install
     spawner.cmd = [
@@ -546,7 +550,7 @@ async def pre_spawn_hook(spawner):
         f"&& {pip_install_command2} || true "
         f"&& {pip_install_command3} || true "
         f"&& cd /home/jovyan/work || true "
-        f"&& exec {' '.join(original_cmd)}"
+        f"{'&& ' + exec_cmd if exec_cmd else ''}"
     ]
 
     # make username available for MLflow library

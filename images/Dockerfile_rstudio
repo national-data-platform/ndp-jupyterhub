@@ -2,8 +2,8 @@ FROM rocker/rstudio:4.3.1
 
 USER root
 
-# Install Python and Jupyter
-RUN apt-get update && apt-get install -y \
+# Install system dependencies and Python packages
+RUN apt-get update && apt-get install -y --no-install-recommends \
     python3-pip \
     python3-dev \
     libcurl4-openssl-dev \
@@ -15,12 +15,25 @@ RUN apt-get update && apt-get install -y \
     requests && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Allow jovyan user to sudo without password (optional)
-RUN usermod -aG sudo rstudio && \
-    echo 'rstudio ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
+# Ensure R config dir writable
+RUN chmod -R u+w /usr/local/lib/R/etc
+
+# Allow rstudio user to sudo without password
+RUN echo 'rstudio ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/rstudio && \
+    chmod 0440 /etc/sudoers.d/rstudio
+
+# Create workspace directory and set ownership
+RUN mkdir -p /home/jovyan/work && \
+    chown -R rstudio:rstudio /home/jovyan
 
 # Set working directory
-WORKDIR /home/rstudio
+WORKDIR /home/jovyan/work
+
+# Set default password for RStudio Server login
+ENV PASSWORD=ndpRstudio2025
+RUN echo "rstudio:${PASSWORD}" | chpasswd
+
+ENV TERM=xterm
 
 USER rstudio
 
