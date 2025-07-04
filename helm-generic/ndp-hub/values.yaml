@@ -1,0 +1,138 @@
+
+jupyterhub:
+  hub:
+    image:
+      name: yutianqin/ndp-k8s-hub
+      tag: "v1"
+    extraEnv:
+      JUPYTERHUB_METRICS_API_KEY: a81e4f556c8f414df20e6294543451fc
+    existingSecret: jupyterhub-secret # Passing Keycloak client_id and client_secret into hub server
+    config:
+      GenericOAuthenticator:
+        oauth_callback_url: http://<INGRESS-EXTERNAL-IP>/hub/oauth_callback # change me
+        authorize_url: https://idp.nationaldataplatform.org/realms/NDP/protocol/openid-connect/auth
+        token_url: https://idp.nationaldataplatform.org/realms/NDP/protocol/openid-connect/token
+        userdata_url: https://idp.nationaldataplatform.org/realms/NDP/protocol/openid-connect/userinfo
+        # logout_redirect_url: https://idp.nationaldataplatform.org/realms/NDP/protocol/openid-connect/logout?redirect_uri=http://<INGRESS-EXTERNAL-IP>/hub/oauth_callback
+        username_claim: preferred_username
+        userdata_params:
+          state: state
+        allow_all: False
+        allowed_groups: ["jhub_user"]
+        auto_login: True
+        enable_auth_state: True
+        admin_users: ["yutian.qin@utah.edu"]
+        scope:
+          - openid
+      JupyterHub:
+        authenticator_class: generic-oauth
+    service:
+      type: ClusterIP
+      annotations: {}
+      ports:
+        nodePort:
+      loadBalancerIP:
+    deploymentStrategy:
+      type: Recreate
+    db:
+      type: sqlite-pvc
+      pvc:
+        accessModes:
+          - ReadWriteOnce
+        storage: 10Gi
+        storageClassName: gp2 # change me
+    resources:
+      limits:
+        cpu: "2"
+        memory: 1Gi
+      requests:
+        cpu: 100m
+        memory: 512Mi
+    networkPolicy:
+      enabled: false
+    # Extra Configurations
+    extraConfig:
+
+      default.py: |
+# spawner.py code here
+
+  proxy:
+    secretToken: 132d98739b00ac82c57e9a974145e016b3abb3a4827c795d068b1a4037f46204
+    service:
+      type: ClusterIP
+    chp:
+      resources:
+        limits:
+          cpu: "2"
+          memory: 1Gi
+        requests:
+          cpu: 200m
+          memory: 512Mi
+
+  singleuser:
+    uid: 1000
+    fsGid: 100
+    allowPrivilegeEscalation: true
+    extraPodConfig:
+      securityContext:
+          fsGroupChangePolicy: "OnRootMismatch"
+    cloudMetadata:
+      blockWithIptables: false
+    networkPolicy:
+      enabled: false
+    initContainers:
+    - name: volume-permissions
+      image: busybox
+      command: ["sh", "-c", "chmod 777 -R /home/jovyan/work/_User-Persistent-Storage"]
+      volumeMounts:
+        - mountPath: /home/jovyan/work/_User-Persistent-Storage
+          name: volume-{username}
+    storage:
+      extraLabels: {}
+      capacity: 1Gi
+      homeMountPath: /home/jovyan/work/_User-Persistent-Storage
+      dynamic:
+        storageClass: gp2 # change me
+        pvcNameTemplate: claim-{username}
+        volumeNameTemplate: volume-{username}
+        storageAccessModes: [ReadWriteOnce]
+
+    startTimeout: 1200
+    cpu:
+      limit: 2
+      guarantee: 1
+    memory:
+      limit: 4G
+      guarantee: 4G
+    extraResource:
+      limits: {}
+      guarantees: {}
+    cmd: jupyterhub-singleuser
+    defaultUrl: "/lab"
+
+  scheduling:
+    userScheduler:
+      enabled: false
+    userPlaceholder:
+      enabled: false
+  # prePuller relates to the hook|continuous-image-puller DaemonsSets
+  prePuller:
+    hook:
+      enabled: false
+    continuous:
+      enabled: false
+
+  ingress:
+    enabled: true
+    ingressClassName: nginx # change me
+    hosts: []
+    tls: []
+
+  cull:
+    enabled: true
+    users: false
+    removeNamedServers: false
+    timeout: 3600
+    every: 600
+    concurrency: 10
+    maxAge: 0
