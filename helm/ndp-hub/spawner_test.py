@@ -144,7 +144,7 @@ original_profile_list = [
         'default': False,
         'kubespawner_override': {
             'image': 'gitlab-registry.nrp-nautilus.io/ndp/ndp-docker-images/jhub-spawn:rstudio_v0.0.1',
-            'default_url': '/rstudio'
+            'default_url': '/lab'
         }
     },
 ]
@@ -526,20 +526,8 @@ async def pre_spawn_hook(spawner):
     pip_install_command2 = ("pip install jupyterlab-git==0.50.1 --index-url https://gitlab.nrp-nautilus.io/api/v4/projects/3930/packages/pypi/simple --user")
     pip_install_command3 = (f"pip install ndp-jupyterlab-extension=={NDP_EXT_VERSION} --index-url https://gitlab.nrp-nautilus.io/api/v4/projects/3930/packages/pypi/simple --user")
 
-    image = spawner.image or ""
-    print(f"Image: {image}")
-    is_jupyter = "rstudio" not in image
-    print(f"Is Jupyter: {is_jupyter}")
-    if is_jupyter:
-        original_cmd = ["jupyterhub-singleuser"]
-        exec_cmd = f"exec {' '.join(original_cmd)}"
-    else:
-        original_cmd = None  # keep it None so the default ENTRYPOINT runs (rserver)
-        exec_cmd = "exec /usr/lib/rstudio-server/bin/rserver --server-daemonize=0 --www-port=8787 --server-user=jovyan"
-    
-    print(f"Exec command: {exec_cmd}")
-
     # Modify the spawner's start command to include the pip install
+    original_cmd = spawner.cmd or ["jupyterhub-singleuser"]
     spawner.cmd = [
         "bash",
         "-c",
@@ -550,7 +538,7 @@ async def pre_spawn_hook(spawner):
         f"&& {pip_install_command2} || true "
         f"&& {pip_install_command3} || true "
         f"&& cd /home/jovyan/work || true "
-        f"{'&& ' + exec_cmd if exec_cmd else ''}"
+        f"&& exec {' '.join(original_cmd)}"
     ]
 
     # make username available for MLflow library
