@@ -59,6 +59,15 @@ original_profile_list = [
         'slug': "1",
     },
     {
+        'display_name': "Minimal NDP Starter Jupyter Lab + RStudio",
+        'slug': "11",
+        'default': False,
+        'kubespawner_override': {
+            'image': 'gitlab-registry.nrp-nautilus.io/ndp/ndp-docker-images/jhub-spawn:rstudio_v0.0.1',
+            'default_url': '/lab'
+        }
+    },
+    {
         'display_name': "NDP Catalog Search",
         'default': False,
         'slug': "10",
@@ -136,15 +145,6 @@ original_profile_list = [
         'default': False,
         'kubespawner_override': {
             'image': 'gitlab-registry.nrp-nautilus.io/ndp/ndp-docker-images/jhub-spawn:utah_demos_0.0.0.1',
-        }
-    },
-    {
-        'display_name': "RStudio",
-        'slug': "11",
-        'default': False,
-        'kubespawner_override': {
-            'image': 'gitlab-registry.nrp-nautilus.io/ndp/ndp-docker-images/jhub-spawn:rstudio_v0.0.1',
-            'default_url': '/lab'
         }
     },
 ]

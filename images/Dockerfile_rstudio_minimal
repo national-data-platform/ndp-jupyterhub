@@ -65,6 +65,15 @@ RUN wget -O /tmp/rstudio-server.deb https://download2.rstudio.org/server/jammy/a
 # Install IRKernel (R kernel for Jupyter)
 RUN R -e "install.packages('IRkernel', repos='https://cloud.r-project.org'); IRkernel::installspec(user = FALSE)"
 
+# Install packages required to create R Markdown files
+RUN R -e "install.packages(c('highr', 'knitr', 'magrittr', 'mime', 'rmarkdown', 'stringi', 'stringr', 'xfun', 'yaml'), repos='https://cloud.r-project.org/')"
+
+# Install tinytex for PDF knitting
+RUN R -e "install.packages('tinytex', repos='https://cloud.r-project.org'); tinytex::install_tinytex()"
+
+# Update packages for dataset import
+RUN R -e "install.packages(c('readr', 'readxl', 'haven', 'Rcpp'), repos='https://cloud.r-project.org')"
+
 # Install jupyter-rsession-proxy
 RUN pip install jupyter-rsession-proxy
 
