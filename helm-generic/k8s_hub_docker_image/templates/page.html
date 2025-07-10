@@ -1,0 +1,69 @@
+{% extends "templates/page.html" %}
+
+
+{% block nav_bar %}
+  <nav class="navbar navbar-default">
+    <div class="container-fluid">
+      <div class="navbar-header">
+        {% block logo %}
+        <span id="jupyterhub-logo" class="pull-left">
+            <a href="{{logo_url or base_url}}"><img src='{{static_url("images/ndp_logo.png") }}' alt='JupyterHub logo' class='jpy-logo' title='Home'/></a>
+        </span>
+        {% endblock %}
+        {% if user %}
+        <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#thenavbar" aria-expanded="false">
+          <span class="sr-only">Toggle navigation</span>
+          <span class="icon-bar"></span>
+          <span class="icon-bar"></span>
+          <span class="icon-bar"></span>
+        </button>
+        {% endif %}
+      </div>
+
+      <div class="collapse navbar-collapse" id="thenavbar">
+        {% if user %}
+        <ul class="nav navbar-nav">
+          {% block nav_bar_left_items %}
+            <li><a href="{{base_url}}home">Home</a></li>
+            <li><a href="{{base_url}}token">Token</a></li>
+            {% if 'admin-ui' in parsed_scopes %}
+            <li><a href="{{base_url}}admin">Admin</a></li>
+            {% endif %}
+            {% if services %}
+            <li class="dropdown">
+              <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-haspopup="true" aria-expanded="false">Services<span class="caret"></span></a>
+              <ul class="dropdown-menu">
+              {% for service in services %}
+              {% block service scoped %}
+                <li><a class="dropdown-item" href="{{service.href}}">{{service.name}}</a></li>
+              {% endblock %}
+              {% endfor %}
+              </ul>
+            </li>
+            {% endif %}
+          {% endblock %}
+        </ul>
+        {% endif %}
+        <ul class="nav navbar-nav navbar-right">
+          {% block nav_bar_right_items %}
+            <li>
+              {% block login_widget %}
+                <span id="login_widget">
+                  {% if user %}
+                    <p class="navbar-text">{{user.name}}</p>
+                    <a id="logout" role="button" class="navbar-btn btn-sm btn btn-default" href="{{logout_url}}"> <i aria-hidden="true" class="fa fa-sign-out"></i> Logout</a>
+                  {% else %}
+                    <a id="login" role="button" class="btn-sm btn navbar-btn btn-default" href="{{login_url}}">Login</a>
+                  {% endif %}
+                </span>
+              {% endblock %}
+            </li>
+          {% endblock %}
+        </ul>
+      </div>
+
+      {% block header %}
+      {% endblock %}
+    </div>
+  </nav>
+{% endblock %}
