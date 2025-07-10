@@ -44,6 +44,7 @@ services:
      - WORKSPACE_API_URL
      - REFRESH_EVERY_SECONDS
      - NDP_EXT_VERSION
+     - JUPYTERHUB_GROUPS
 volumes:
   jupyterhub:
 
