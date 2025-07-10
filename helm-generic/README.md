@@ -26,7 +26,7 @@ Ensure that `./helm/jupyterhub_secret.yaml` contains the correct Keycloak client
 #### Creating the JupyterHub Secret
 
 1. **Edit Credentials:**  
-   Open [`./helm/jupyterhub_secret.yaml`](./helm/jupyterhub_secret.yaml) and fill in the `client_id` and `client_secret` fields with the appropriate values.
+   Open [`./ndp-hub/jupyterhub_secret.yaml`](./ndp-hub/jupyterhub_secret.yaml) and fill in the `client_id` and `client_secret` fields with the appropriate values.
 
 2. **Create the Kubernetes Secret:**  
    Apply the secret to your cluster by running:
