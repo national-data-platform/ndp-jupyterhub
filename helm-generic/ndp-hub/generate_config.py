@@ -21,4 +21,4 @@ updated_yaml_content = values_yaml_content.replace(f"# spawner.py code here", in
 with open(output_file, "w") as output_yaml_file:
     output_yaml_file.write(updated_yaml_content)
 
-print(f"Updated YAML with Python code written to {output_file}")
+print(f"Updated {values_yaml_file} with Python code {python_code_file}, written to {output_file}")

@@ -489,69 +489,68 @@ async def pre_spawn_hook(spawner):
     spawner.environment.update({"WORKSPACE_API_URL": WORKSPACE_API_URL})
     spawner.environment.update({"REFRESH_EVERY_SECONDS": str(REFRESH_EVERY_SECONDS)})
 
-    try:
-        groups = await get_user_groups(spawner.access_token)
-        if groups:
-            id_lst = []
-            init_containers = []
-            for group in groups:
-                group_id = group['subgroup_id']
-                group_type = group['type_of_entity']
+    # try:
+    #     groups = await get_user_groups(spawner.access_token)
+    #     if groups:
+    #         id_lst = []
+    #         init_containers = []
+    #         for group in groups:
+    #             group_id = group['subgroup_id']
+    #             group_type = group['type_of_entity']
 
-                if group_id not in id_lst and group_type == 'data_challenge':
-                    id_lst.append(group_id)
-                    id_short = group_id[0:13]
-                    group_name = group['group_name'].replace(" ", "-")
-                    pvc_name = f'claim-ndpgroups-{id_short}'
-                    volume_name = f'volume-ndpgroups-{id_short}'
-                    try:
-                        api.read_namespaced_persistent_volume_claim(name=pvc_name, namespace=NAMESPACE)
-                    except ApiException as e:
-                        print(e)
-                        if e.status == 404:
-                            print(f"Creating PVC {pvc_name}")
-                            pvc_manifest = {
-                                'apiVersion': 'v1',
-                                'kind': 'PersistentVolumeClaim',
-                                'metadata': {'name': pvc_name, 'namespace': NAMESPACE},
-                                'spec': {
-                                    'accessModes': ['ReadWriteMany'],
-                                    'resources': {'requests': {'storage': '5Gi'}},
-                                    'storageClassName': 'rook-cephfs-central'
-                                }
-                            }
-                            api.create_namespaced_persistent_volume_claim(namespace=NAMESPACE, body=pvc_manifest)
-                            print(f"PVC {pvc_name} created successfully.")
-                        else:
-                            print(f"Error creating PVC {pvc_name}: {e}!!!!!!")
-                            raise
-                    logging.info(f"Adding volume and mount for group {group_name}")
-                    init_containers.append({
-                        'name': f'set-permissions-{id_short}',
-                        'image': 'alpine',
-                        'command': ['sh', '-c', f'chmod -R 0777 /shared-storage/{group_name}-{id_short[0:5]}'],
-                        'volumeMounts': [{
-                            'name': volume_name,
-                            'mountPath': f'/shared-storage/{group_name}-{id_short[0:5]}'
-                        }]
-                    })
-                    spawner.volume_mounts.append({
-                        'name': volume_name,
-                        'mountPath': f'/home/jovyan/work/{group_name}-Shared-Storage-{id_short[0:5]}/'
-                    })
-                    spawner.volumes.append({
-                        'name': volume_name,
-                        'persistentVolumeClaim': {'claimName': pvc_name}
-                    })
-            spawner.extra_volumes = spawner.volumes
-            spawner.extra_volume_mounts = spawner.volume_mounts
-            spawner.extra_pod_config = spawner.extra_pod_config or {}
-            spawner.extra_pod_config.setdefault('initContainers', []).extend(init_containers)
-            spawner.environment.update({'USER_GROUPS': ','.join(groups)})
-    except:
-        pass
+    #             if group_id not in id_lst and group_type == 'data_challenge':
+    #                 id_lst.append(group_id)
+    #                 id_short = group_id[0:13]
+    #                 group_name = group['group_name'].replace(" ", "-")
+    #                 pvc_name = f'claim-ndpgroups-{id_short}'
+    #                 volume_name = f'volume-ndpgroups-{id_short}'
+    #                 try:
+    #                     api.read_namespaced_persistent_volume_claim(name=pvc_name, namespace=NAMESPACE)
+    #                 except ApiException as e:
+    #                     print(e)
+    #                     if e.status == 404:
+    #                         print(f"Creating PVC {pvc_name}")
+    #                         pvc_manifest = {
+    #                             'apiVersion': 'v1',
+    #                             'kind': 'PersistentVolumeClaim',
+    #                             'metadata': {'name': pvc_name, 'namespace': NAMESPACE},
+    #                             'spec': {
+    #                                 'accessModes': ['ReadWriteMany'],
+    #                                 'resources': {'requests': {'storage': '5Gi'}},
+    #                                 'storageClassName': 'rook-cephfs-central'
+    #                             }
+    #                         }
+    #                         api.create_namespaced_persistent_volume_claim(namespace=NAMESPACE, body=pvc_manifest)
+    #                         print(f"PVC {pvc_name} created successfully.")
+    #                     else:
+    #                         print(f"Error creating PVC {pvc_name}: {e}!!!!!!")
+    #                         raise
+    #                 logging.info(f"Adding volume and mount for group {group_name}")
+    #                 init_containers.append({
+    #                     'name': f'set-permissions-{id_short}',
+    #                     'image': 'alpine',
+    #                     'command': ['sh', '-c', f'chmod -R 0777 /shared-storage/{group_name}-{id_short[0:5]}'],
+    #                     'volumeMounts': [{
+    #                         'name': volume_name,
+    #                         'mountPath': f'/shared-storage/{group_name}-{id_short[0:5]}'
+    #                     }]
+    #                 })
+    #                 spawner.volume_mounts.append({
+    #                     'name': volume_name,
+    #                     'mountPath': f'/home/jovyan/work/{group_name}-Shared-Storage-{id_short[0:5]}/'
+    #                 })
+    #                 spawner.volumes.append({
+    #                     'name': volume_name,
+    #                     'persistentVolumeClaim': {'claimName': pvc_name}
+    #                 })
+    #         spawner.extra_volumes = spawner.volumes
+    #         spawner.extra_volume_mounts = spawner.volume_mounts
+    #         spawner.extra_pod_config = spawner.extra_pod_config or {}
+    #         spawner.extra_pod_config.setdefault('initContainers', []).extend(init_containers)
+    #         spawner.environment.update({'USER_GROUPS': ','.join(groups)})
+    # except:
+    #     pass
 
-# c.JupyterHub.base_url = '/jupyterhub'
 c.JupyterHub.template_paths = ['/etc/jupyterhub/custom']
 c.JupyterHub.spawner_class = MySpawner
 c.JupyterHub.allow_named_servers = False
