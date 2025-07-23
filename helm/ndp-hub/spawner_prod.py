@@ -501,7 +501,7 @@ def auth_state_hook(spawner, auth_state):
 ## Functions to retrieve user PVCs
 async def get_user_pvcs(token):
     try:
-        conn = http.client.HTTPSConnection("ndp-staging.sdsc.edu")
+        conn = http.client.HTTPSConnection("https://nationaldataplatform.org/")
         headers = {
             'Authorization': f'Bearer {token}',
             'Content-Type': 'application/json'}
@@ -518,7 +518,7 @@ async def get_user_pvcs(token):
 
 async def update_pvc(token, pvc_id):
     try:
-        conn = http.client.HTTPSConnection("ndp-staging.sdsc.edu")
+        conn = http.client.HTTPSConnection("https://nationaldataplatform.org/")
         headers = {
             'Authorization': f'Bearer {token}',
             'Content-Type': 'application/json'
