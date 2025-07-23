@@ -12,6 +12,7 @@ import base64
 import http.client
 import socket
 import json
+from datetime import date, datetime
 
 
 def use_k8s_secret(namespace, secret_name):
