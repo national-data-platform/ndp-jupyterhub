@@ -12,6 +12,8 @@ import base64
 import http.client
 import socket
 import json
+from datetime import date, datetime
+
 
 
 def use_k8s_secret(namespace, secret_name):
@@ -568,7 +570,7 @@ async def pre_spawn_hook(spawner):
     spawner.environment.update({"WORKSPACE_API_URL": WORKSPACE_API_URL})
     spawner.environment.update({"REFRESH_EVERY_SECONDS": str(REFRESH_EVERY_SECONDS)})
 
-   PVCs = await get_user_pvcs(spawner.access_token)
+    PVCs = await get_user_pvcs(spawner.access_token)
     if PVCs:
         print(f"USER SHARED {PVCs}")
         folder_names = []
