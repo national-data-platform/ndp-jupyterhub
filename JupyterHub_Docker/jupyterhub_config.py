@@ -72,9 +72,17 @@ c.GenericOAuthenticator.userdata_params = {'state': 'state'}
 c.GenericOAuthenticator.username_key = 'preferred_username'
 c.GenericOAuthenticator.login_service = 'Keycloak'
 c.GenericOAuthenticator.scope = ['openid', 'profile']
-c.GenericOAuthenticator.allow_all = True
+c.GenericOAuthenticator.allow_all = False   # this needs to be set to False for the group check to work
 c.GenericOAuthenticator.enable_auth_state = True
 c.Authenticator.auto_login = True
+
+#enable group managment
+c.GenericOAuthenticator.enable_auth_state = True
+c.GenericOAuthenticator.manage_groups = True
+c.GenericOAuthenticator.claim_groups_key = "groups"
+c.GenericOAuthenticator.auth_state_groups_key = "groups"
+raw = os.environ.get("JUPYTERHUB_GROUPS", "")
+c.GenericOAuthenticator.allowed_groups = set(raw.split(",")) if raw else set()
 
 # Allowed admins
 admin = os.environ.get("JUPYTERHUB_ADMIN")

@@ -12,6 +12,7 @@ import base64
 import http.client
 import socket
 import json
+from datetime import date, datetime
 
 
 def use_k8s_secret(namespace, secret_name):
@@ -34,7 +35,7 @@ def use_k8s_secret(namespace, secret_name):
 NAMESPACE = 'ndp-test'
 CLIENT_ID, CLIENT_SECRET = use_k8s_secret(namespace=NAMESPACE, secret_name='jupyterhub-secret')
 KEYCLOAK_URL = "https://idp-test.nationaldataplatform.org"
-NDP_EXT_VERSION = '0.0.10'
+NDP_EXT_VERSION = '0.0.17'
 
 USER_PERSISTENT_STORAGE_FOLDER = "_User-Persistent-Storage_CephBlock_"
 
@@ -57,6 +58,15 @@ original_profile_list = [
         'display_name': "Minimal NDP Starter Jupyter Lab",
         'default': True,
         'slug': "1",
+    },
+    {
+        'display_name': "Minimal NDP Starter Jupyter Lab + RStudio",
+        'slug': "11",
+        'default': False,
+        'kubespawner_override': {
+            'image': 'gitlab-registry.nrp-nautilus.io/ndp/ndp-docker-images/jhub-spawn:rstudio_v0.0.1',
+            'default_url': '/lab'
+        }
     },
     {
         'display_name': "NDP Catalog Search",
@@ -133,14 +143,6 @@ original_profile_list = [
     {
         'display_name': "NOAA-SAGE-EARTHSCOPE Starter Codes",
         'slug': "10",
-        'default': False,
-        'kubespawner_override': {
-            'image': 'gitlab-registry.nrp-nautilus.io/ndp/ndp-docker-images/jhub-spawn:utah_demos_0.0.0.1',
-        }
-    },
-    {
-        'display_name': "TESTING",
-        'slug': "11",
         'default': False,
         'kubespawner_override': {
             'image': 'gitlab-registry.nrp-nautilus.io/ndp/ndp-docker-images/jhub-spawn:utah_demos_0.0.0.1',
@@ -498,14 +500,14 @@ def auth_state_hook(spawner, auth_state):
     spawner.environment.update({'ACCESS_TOKEN': spawner.access_token})
     spawner.environment.update({'REFRESH_TOKEN': spawner.refresh_token})
 
-## Functions to retrieve user groups
-async def get_user_groups(token):
+## Functions to retrieve user PVCs
+async def get_user_pvcs(token):
     try:
         conn = http.client.HTTPSConnection("ndp-test.sdsc.edu")
         headers = {
             'Authorization': f'Bearer {token}',
             'Content-Type': 'application/json'}
-        conn.request("GET", "/workspaces-api/group", headers=headers)
+        conn.request("GET", "/workspaces-api/read_pvc_by_user", headers=headers)
         response = conn.getresponse()
         if response.status != 200:
             return []
@@ -513,6 +515,33 @@ async def get_user_groups(token):
         return data
     except (http.client.HTTPException, TimeoutError, json.JSONDecodeError, socket.timeout):
         return []
+
+## Function to update PVC status
+
+async def update_pvc(token, pvc_id):
+    try:
+        conn = http.client.HTTPSConnection("ndp-test.sdsc.edu")
+        headers = {
+            'Authorization': f'Bearer {token}',
+            'Content-Type': 'application/json'
+        }
+
+        payload = json.dumps({
+            "pvc_id": pvc_id,
+            "status": "Active",
+            "last_mounted": datetime.utcnow().isoformat()
+        })
+
+        conn.request("PUT", "/workspaces-api/update_pvc", body=payload, headers=headers)
+        response = conn.getresponse()
+
+        if response.status == 200:
+            print(f"PVC with id {pvc_id} updated succesfully")
+        else:
+            print(f"Failed to update PVC with id {pvc_id}")
+
+    except (http.client.HTTPException, TimeoutError, json.JSONDecodeError, socket.timeout) as e:
+        return f"Exception occurred: {str(e)}"
 
 async def pre_spawn_hook(spawner):
     config.load_incluster_config()
@@ -559,74 +588,65 @@ async def pre_spawn_hook(spawner):
     spawner.environment.update({"WORKSPACE_API_URL": WORKSPACE_API_URL})
     spawner.environment.update({"REFRESH_EVERY_SECONDS": str(REFRESH_EVERY_SECONDS)})
 
-    # group_names = {group.name for group in spawner.user.groups}
-    # print(f"User {spawner.user.name} belongs to groups: {group_names}")
-    # if "collaborative" in group_names:
-    #     spawner.log.info(f"Enabling RTC for user {spawner.user.name}")
-    #     # spawner.args.append("--LabApp.collaborative=True")
-
-
-    try:
-        groups = await get_user_groups(spawner.access_token)
-        if groups:
-            id_lst = []
-            init_containers = []
-            for group in groups:
-                group_id = group['subgroup_id']
-                group_type = group['type_of_entity']
-
-                if group_id not in id_lst and group_type == 'data_challenge':
-                    id_lst.append(group_id)
-                    id_short = group_id[0:13]
-                    group_name = group['group_name'].replace(" ", "-")
-                    pvc_name = f'claim-ndpgroups-{id_short}'
-                    volume_name = f'volume-ndpgroups-{id_short}'
-                    try:
-                        api.read_namespaced_persistent_volume_claim(name=pvc_name, namespace=NAMESPACE)
-                    except ApiException as e:
-                        print(e)
-                        if e.status == 404:
-                            print(f"Creating PVC {pvc_name}")
-                            pvc_manifest = {
-                                'apiVersion': 'v1',
-                                'kind': 'PersistentVolumeClaim',
-                                'metadata': {'name': pvc_name, 'namespace': NAMESPACE},
-                                'spec': {
-                                    'accessModes': ['ReadWriteMany'],
-                                    'resources': {'requests': {'storage': '5Gi'}},
-                                    'storageClassName': 'rook-cephfs-central'
-                                }
+    PVCs = await get_user_pvcs(spawner.access_token)
+    if PVCs:
+        print(f"USER SHARED {PVCs}")
+        folder_names = []
+        init_containers = []
+        for pvc in PVCs:
+            try:
+                folder_name = pvc['folder_name'].replace(" ", "-")
+                id_short = pvc['subgroup_id'][:5]
+                if folder_name in folder_names:
+                    folder_name = folder_name+claim_name[-5:]
+                folder_names.append(folder_name)
+                claim_name = pvc['claim_name']
+                volume_name = pvc['volume_id']
+            except:
+                pass
+            try:
+                api.read_namespaced_persistent_volume_claim(name=claim_name, namespace=NAMESPACE)
+            except ApiException as e:
+                print(e)
+                if e.status == 404:
+                    print(f"Creating PVC {claim_name}")
+                    pvc_manifest = {
+                            'apiVersion': 'v1',
+                            'kind': 'PersistentVolumeClaim',
+                            'metadata': {'name': claim_name, 'namespace': NAMESPACE},
+                            'spec': {
+                                'accessModes': ['ReadWriteMany'],
+                                'resources': {'requests': {'storage': '5Gi'}},
+                                'storageClassName': 'rook-cephfs-central'
                             }
-                            api.create_namespaced_persistent_volume_claim(namespace=NAMESPACE, body=pvc_manifest)
-                            print(f"PVC {pvc_name} created successfully.")
-                        else:
-                            print(f"Error creating PVC {pvc_name}: {e}!!!!!!")
-                            raise
-                    logging.info(f"Adding volume and mount for group {group_name} with id {id_short}")
-                    init_containers.append({
-                        'name': f'set-permissions-{id_short}',
-                        'image': 'alpine',
-                        'command': ['sh', '-c', f'chmod -R 0777 /shared-storage/{group_name}-{id_short[0:5]}'],
-                        'volumeMounts': [{
-                            'name': volume_name,
-                            'mountPath': f'/shared-storage/{group_name}-{id_short[0:5]}'
-                        }]
-                    })
-                    spawner.volume_mounts.append({
+                        }
+                    api.create_namespaced_persistent_volume_claim(namespace=NAMESPACE, body=pvc_manifest)
+                    print(f"PVC {claim_name} created successfully.")
+                else:
+                    print(f"Error creating PVC {claim_name}: {e}!!!!!!")
+                    raise
+            logging.info(f"Adding volume and mount for group {folder_name}")
+            init_containers.append({
+                    'name': f'set-permissions-{id_short}',
+                    'image': 'alpine',
+                    'command': ['sh', '-c', f'chmod -R 0777 /shared-storage/{folder_name}'],
+                    'volumeMounts': [{
                         'name': volume_name,
-                        'mountPath': f'/home/jovyan/work/{group_name}-Shared-Storage-{id_short[0:5]}/'
-                    })
-                    spawner.volumes.append({
-                        'name': volume_name,
-                        'persistentVolumeClaim': {'claimName': pvc_name}
-                    })
-            spawner.extra_volumes = spawner.volumes
-            spawner.extra_volume_mounts = spawner.volume_mounts
-            spawner.extra_pod_config = spawner.extra_pod_config or {}
-            spawner.extra_pod_config.setdefault('initContainers', []).extend(init_containers)
-            spawner.environment.update({'USER_GROUPS': ','.join(groups)})
-    except:
-        pass
+                        'mountPath': f'/shared-storage/{folder_name}'
+                    }]
+                })
+            spawner.extra_volume_mounts.append({
+                    'name': volume_name,
+                    'mountPath': f'/home/jovyan/work/{folder_name}/'
+                })
+            spawner.extra_volumes.append({
+                    'name': volume_name,
+                    'persistentVolumeClaim': {'claimName': claim_name}
+                })
+            
+            await update_pvc(spawner.access_token, pvc['pvc_id'])
+        spawner.extra_pod_config = spawner.extra_pod_config or {}
+        spawner.extra_pod_config.setdefault('initContainers', []).extend(init_containers)
 
 # c.LabServerApp.collaborative = True
 c.JupyterHub.template_paths = ['/etc/jupyterhub/custom']

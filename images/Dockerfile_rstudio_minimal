@@ -1,0 +1,87 @@
+# FROM quay.io/jupyter/base-notebook:latest
+FROM jupyter/base-notebook:python-3.11
+
+WORKDIR /home/jovyan/work
+
+USER root
+
+# Install system packages
+RUN apt-get update && apt-get install -y \
+    git \
+    sudo \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Install R
+RUN apt-get update && \
+apt-get install -y --no-install-recommends \
+    r-base \
+    r-base-dev \
+    r-recommended \
+    libcurl4-openssl-dev \
+    libssl-dev \
+    libxml2-dev \
+    libgit2-dev && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Install RStudio Server and dependencies
+    RUN apt-get update && apt-get install -y --no-install-recommends \
+    gdebi-core \
+    libnss3 \
+    libx11-xcb1 \
+    libxcomposite1 \
+    libxdamage1 \
+    libxrandr2 \
+    libasound2 \
+    libatk1.0-0 \
+    libgtk-3-0 \
+    libgbm1 \
+    libxss1 \
+    libxtst6 \
+    libcurl4 \
+    libjpeg62 \
+    libgstreamer1.0-0 \
+    libgstreamer-plugins-base1.0-0 && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+
+RUN chmod a+x /usr/bin/git
+
+# Ensure proper ownership of Python and Jupyter directories
+RUN mkdir -p /home/jovyan/.local/share/jupyter/runtime && \
+    chown -R jovyan:users /home/jovyan
+
+# Allow jovyan passwordless sudo
+RUN echo 'jovyan ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers
+
+# Install Python packages
+RUN pip install requests \
+    && pip install jupyterlab==4.2.4
+
+# Install RStudio Server (open-source version)
+RUN wget -O /tmp/rstudio-server.deb https://download2.rstudio.org/server/jammy/amd64/rstudio-server-2025.05.1-513-amd64.deb && \
+    apt-get update && apt-get install -y psmisc libclang-dev lsb-release && \
+    dpkg -i /tmp/rstudio-server.deb && \
+    rm /tmp/rstudio-server.deb
+
+# Install IRKernel (R kernel for Jupyter)
+RUN R -e "install.packages('IRkernel', repos='https://cloud.r-project.org'); IRkernel::installspec(user = FALSE)"
+
+# Install packages required to create R Markdown files
+RUN R -e "install.packages(c('highr', 'knitr', 'magrittr', 'mime', 'rmarkdown', 'stringi', 'stringr', 'xfun', 'yaml'), repos='https://cloud.r-project.org/')"
+
+# Install tinytex for PDF knitting
+RUN R -e "install.packages('tinytex', repos='https://cloud.r-project.org'); tinytex::install_tinytex()"
+
+# Update packages for dataset import
+RUN R -e "install.packages(c('readr', 'readxl', 'haven', 'Rcpp'), repos='https://cloud.r-project.org')"
+
+# Install jupyter-rsession-proxy
+RUN pip install jupyter-rsession-proxy
+
+# Set correct PATH in case user installs pip packages later
+ENV PATH="/home/jovyan/.local/bin:$PATH"
+ENV PATH="/usr/lib/rstudio-server/bin:${PATH}"
+
+
+USER jovyan
+
+#docker build ./images -f ./images/Dockerfile_rstudio_minimal -t gitlab-registry.nrp-nautilus.io/ndp/ndp-docker-images/jhub-spawn:rstudio_v0.0.1 --platform=linux/amd64 --no-cache

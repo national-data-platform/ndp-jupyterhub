@@ -12,8 +12,6 @@ import base64
 import http.client
 import socket
 import json
-from datetime import date, datetime
-
 
 
 def use_k8s_secret(namespace, secret_name):
@@ -33,41 +31,40 @@ def use_k8s_secret(namespace, secret_name):
 
     return client_id_splitted, client_secret_splitted
 
-NAMESPACE = 'ndp-staging'
+NAMESPACE = 'jupyterhub'
 CLIENT_ID, CLIENT_SECRET = use_k8s_secret(namespace=NAMESPACE, secret_name='jupyterhub-secret')
-KEYCLOAK_URL = "https://idp.nationaldataplatform.org"
-NDP_EXT_VERSION = '0.0.18+86500bd'
+KEYCLOAK_URL = 'https://idp.nationaldataplatform.org'
+NDP_EXT_VERSION = '0.0.12'
 
-USER_PERSISTENT_STORAGE_FOLDER = "_User-Persistent-Storage_CephBlock_"
+USER_PERSISTENT_STORAGE_FOLDER = "_User-Persistent-Storage"
 
 aws_access_key_id = 'admin'
 aws_secret_access_key = 'sample_key'
 mlflow_s3_endpoint_url = 'http://minio:9000'
-mlflow_tracking_uri = 'https://ndp-staging.sdsc.edu/mlflow'
+mlflow_tracking_uri = 'https://nationaldataplatform.org/mlflow'
 # mlflow_admin_username = 'admin'
 # mlflow_admin_password = 'password'
 mlflow_default_user_password = 'password'
 aws_bucket_name = 'mlflow'
-CKAN_API_URL = "https://ndp-staging.sdsc.edu/catalog/api/3/action/"
-WORKSPACE_API_URL = "https://ndp-staging.sdsc.edu/workspaces-api"
+CKAN_API_URL = "https://nationaldataplatform.org/catalog/api/3/action/"
+WORKSPACE_API_URL = "https://nationaldataplatform.org/workspaces-api"
 REFRESH_EVERY_SECONDS = 1200
 
 os.environ['JUPYTERHUB_CRYPT_KEY'] = token_hex(32)
 
 original_profile_list = [
     {
-        'display_name': "Minimal NDP Starter Jupyter Lab",
+        'display_name': "NDP Endpoint Data Streaming & Data Staging Examples",
         'default': True,
-        'slug': "1",
+        'slug': "11",
+        'kubespawner_override': {
+            'image': 'yutianqin/rai-utah-hackathon:latest',
+        }
     },
     {
-        'display_name': "Minimal NDP Starter Jupyter Lab + RStudio",
-        'slug': "11",
+        'display_name': "Minimal NDP Starter Jupyter Lab",
         'default': False,
-        'kubespawner_override': {
-            'image': 'gitlab-registry.nrp-nautilus.io/ndp/ndp-docker-images/jhub-spawn:rstudio_v0.0.1',
-            'default_url': '/lab'
-        }
+        'slug': "1",
     },
     {
         'display_name': "NDP Catalog Search",
@@ -162,6 +159,7 @@ class MySpawner(KubeSpawner):
                     }
                     </style>
 
+                    <!--
                     <label for="region">Region</label>
                     <select class="form-control input" name="region">
                       <option value="" selected="selected">Any</option>
@@ -176,7 +174,6 @@ class MySpawner(KubeSpawner):
                       <option value="" selected="selected">Any</option>
                       <option value="ucsd">UCSD</option>
                     </select>
-
 
                     <label for="gpus">GPUs</label>
                     <input class="form-control input" type="number" name="gpus" value="0" min="0" max="4"/>
@@ -211,6 +208,9 @@ class MySpawner(KubeSpawner):
                     <input class="form-check-input" type="checkbox" name="shm">
                     <label class="form-check-label" for="shm"> /dev/shm for pytorch</label>
                     <br>
+                    -->
+
+                    <!-- Profile selection -->
                     <div class='form-group' id='kubespawner-profiles-list'>
                     <br>
                     <label for="profile-select">Select Pre-Built Image
@@ -229,39 +229,31 @@ class MySpawner(KubeSpawner):
                     </label>
                     <input name="custom_image" type="text" class="form-control input" autocomplete="on" placeholder="Enter your custom image URL here, including the tag. For example: jupyter/r-notebook:latest"/>
 
+                    <!-- Timeout configuration -->
                     <label for="timeout">Timeout (in seconds): once a server has been successfully spawned, time to wait until it actually starts </label>
                     <input name="timeout" type="text" class="form-control input" autocomplete="off" placeholder="1200"/>
                     </div>
 
                     <!--
-                    <p>No-CUDA Stack and all B-Data images support ARM architecture.</p>
-
                     <label for="arch">Architecture</label>
                     <select class="form-control input" name="arch">
                       <option value="amd64" selected="selected">amd64</option>
-                      <option value="arm64">arm64</option>
                     </select>
                     -->
 
-
-
-                    <label for="arch">Architecture</label>
-                    <select class="form-control input" name="arch">
-                      <option value="amd64" selected="selected">amd64</option>
-                    </select>
-
                     <b><i>Note:</b> Please stop your server after it is no longer needed, or in case you want to launch different content image
                     <p style="color:green;">In order to stop the server from running Jupyter Lab, go to File > Hub Control Panel > Stop Server</i></p>
-                    <p><i><b>Note:</b> /home/jovyan/work/_User-Persistent-Storage_CephBlock_ is the persistent volume directory, make sure to save your work in it, otherwise it will be deleted</p>
+                    <p><i><b>Note:</b> /home/jovyan/work/_User-Persistent-Storage is the persistent volume directory, make sure to save your work in it, otherwise it will be deleted</p>
                     """
     
     async def options_from_form(self, formdata):
         # print(f'1. self._profile_list: {self._profile_list}')
-        cephfs_pvc_users = {}
+        pvc_users = {}
 
         if not self.profile_list or not hasattr(self, '_profile_list'):
             return formdata
 
+        # profile selection
         selected_profile = int(formdata.get('profile', [0])[0])
         options = self._profile_list[selected_profile]
         # print(f'2. options: {options}')
@@ -305,83 +297,17 @@ class MySpawner(KubeSpawner):
 
                 setattr(self, k, image)
 
-        setattr(self, "extra_resource_limits", {"nvidia.com/gpu": gpus})
-
-        setattr(self, "mem_guarantee", formdata.get('ram', [0])[0] + "G")
-
-        setattr(self, "cpu_guarantee", float(formdata.get('cores', [0])[0]))
-
-        setattr(self, "mem_limit", formdata.get('ram', [0])[0] + "G")
-
-        setattr(self, "cpu_limit", float(formdata.get('cores', [0])[0]))
-
-        nodeSelectorTermsExpressions = [{
-            'key': 'kubernetes.io/arch',
-            'operator': 'In',
-            'values': [formdata.get('arch', [0])[0]]
-        }]
-
-        tolerations = []
-        if formdata.get('arch', [0])[0] == "arm64":
-            tolerations = [
-                {
-                    "effect": "NoSchedule",
-                    "key": "nautilus.io/arm64",
-                    "value": "true"
-                }
-            ]
-
-        if formdata.get('gputype', [0])[0]:
-            nodeSelectorTermsExpressions.append({
-                'key': 'nvidia.com/gpu.product',
-                'operator': 'In',
-                'values': formdata.get('gputype', [0])
-            })
-
-        if formdata.get('region', [0])[0] != "":
-            nodeSelectorTermsExpressions.append({
-                'key': 'topology.kubernetes.io/region',
-                'operator': 'In',
-                'values': formdata.get('region', [0])
-            })
-        if formdata.get('zone', [0])[0] == "ucsd":
-            #     zone
-            nodeSelectorTermsExpressions.append({
-                'key': 'topology.kubernetes.io/zone',
-                'operator': 'In',
-                # 'values': ['ucsd', 'ucsd-sdsc', 'ucsd-nrp']
-                'values': ['ucsd-nrp', 'ucsd-sdsc']
-            })
-
-        if len(nodeSelectorTermsExpressions) > 0:
-            setattr(self, 'extra_pod_config', {
-                'securityContext': {
-                    'fsGroupChangePolicy': 'OnRootMismatch',
-                    'fsGroup': 100
-                },
-                'affinity': {
-                    'nodeAffinity': {
-                        'requiredDuringSchedulingIgnoredDuringExecution': {
-                            'nodeSelectorTerms': [{
-                                'matchExpressions': nodeSelectorTermsExpressions,
-                            }],
-                        },
-                    },
-                },
-                'tolerations': tolerations
-            })
-
         self.volume_mounts = [
             {
-                'name': 'volume-ceph-bw-{username}',
+                'name': 'volume-{username}',
                 'mountPath': f'/home/jovyan/work/{USER_PERSISTENT_STORAGE_FOLDER}',
             }
         ]
         self.volumes = [
             {
-                'name': 'volume-ceph-bw-{username}',
+                'name': 'volume-{username}',
                 'persistentVolumeClaim': {
-                    'claimName': 'claim-ceph-bw-{username}'
+                    'claimName': 'claim-{username}'
                 }
             },
         ]
@@ -395,7 +321,7 @@ class MySpawner(KubeSpawner):
                 'emptyDir': {'medium': 'Memory'}
             })
 
-        if self.user.name in cephfs_pvc_users:
+        if self.user.name in pvc_users:
             self.volume_mounts.append({
                 'name': 'cephfs',
                 'mountPath': '/cephfs',
@@ -403,7 +329,7 @@ class MySpawner(KubeSpawner):
             self.volumes.append({
                 'name': 'cephfs',
                 'persistentVolumeClaim': {
-                    'claimName': 'jupyterlab-cephfs-' + cephfs_pvc_users[self.user.name]
+                    'claimName': 'jupyterlab-cephfs-' + pvc_users[self.user.name]
                 }
             })
         self.extra_volumes = self.volumes
@@ -425,11 +351,13 @@ class MyAuthenticator(GenericOAuthenticator):
         :param handler:
         :return:
         """
-        # print(f'Handler: {handler}')
+        print(f'Handler: {handler}')
 
         print(f"Refreshing Authenticator refresh_user for {user.name}")
+        print(f"[refresh_user] called for user={user.name!r}, handler={handler!r}")
         auth_state = await user.get_auth_state()
-        # print(auth_state)
+        print(f"[refresh_user] auth_state={auth_state!r}")
+        print(auth_state)
         if auth_state:
             if not await self.check_and_refresh_tokens(user, auth_state):
                 if handler:
@@ -453,8 +381,11 @@ class MyAuthenticator(GenericOAuthenticator):
         :param auth_state:
         :return:
         """
+        print(f"[check_and_refresh_tokens] starting refresh for {user.name!r}")
         refresh_token_valid = self.check_refresh_token_keycloak(auth_state)
-        # print(f'refresh_token_valid: {refresh_token_valid}')
+        print(f"[check_and_refresh_tokens] auth_state={auth_state!r}")
+        print(f'refresh_token_valid: {refresh_token_valid}')
+        
         if refresh_token_valid:
             # here we need to refresh access_token
             print('Trying to refresh access_token')
@@ -475,21 +406,27 @@ class MyAuthenticator(GenericOAuthenticator):
         """
         _access_token = auth_state.get('access_token')
         _refresh_token = auth_state.get('refresh_token')
-        print(f"Checking refresh_token")
-        response = requests.post(f"{KEYCLOAK_URL}/realms/NDP/protocol/openid-connect/token",
-                                 data={
-                                     'grant_type': 'refresh_token',
-                                     'refresh_token': _refresh_token,
-                                     'client_id': CLIENT_ID,
-                                     'client_secret': CLIENT_SECRET
-                                 })
-
+        print(f"[check_refresh_token_keycloak] using refresh_token={_refresh_token!r}")
+        print(f"[check_refresh_token_keycloak] Keycloak_URL={KEYCLOAK_URL}, CLIENT_ID={CLIENT_ID}, CLIENT_SECRET={CLIENT_SECRET}")
+        try:
+            response = requests.post(f"{KEYCLOAK_URL}/realms/NDP/protocol/openid-connect/token",
+                                    data={
+                                        'grant_type': 'refresh_token',
+                                        'refresh_token': _refresh_token,
+                                        'client_id': CLIENT_ID,
+                                        'client_secret': CLIENT_SECRET
+                                    })
+        except Exception as e:
+            print(f"[check_refresh_token_keycloak] HTTP request failed: {e}")
+            return False
+        
         if response.status_code == 200:
             print(f"Refresh token is still good!")
             new_access_token = response.json().get('access_token')
             new_refresh_token = response.json().get('refresh_token')
             return new_access_token, new_refresh_token
         else:
+            print(f"[check_refresh_token_keycloak] response status={response.status_code}, body={response.text}")
             return False
 
 # pass access_token and refresh_token for communicating with NDP APIs
@@ -499,14 +436,14 @@ def auth_state_hook(spawner, auth_state):
     spawner.environment.update({'ACCESS_TOKEN': spawner.access_token})
     spawner.environment.update({'REFRESH_TOKEN': spawner.refresh_token})
 
-## Functions to retrieve user PVCs
-async def get_user_pvcs(token):
+## Functions to retrieve user groups
+async def get_user_groups(token):
     try:
-        conn = http.client.HTTPSConnection("ndp-staging.sdsc.edu")
+        conn = http.client.HTTPSConnection("nationaldataplatform.org")
         headers = {
             'Authorization': f'Bearer {token}',
             'Content-Type': 'application/json'}
-        conn.request("GET", "/workspaces-api/read_pvc_by_user", headers=headers)
+        conn.request("GET", "/workspaces-api/group", headers=headers)
         response = conn.getresponse()
         if response.status != 200:
             return []
@@ -514,33 +451,6 @@ async def get_user_pvcs(token):
         return data
     except (http.client.HTTPException, TimeoutError, json.JSONDecodeError, socket.timeout):
         return []
-
-## Function to update PVC status
-
-async def update_pvc(token, pvc_id):
-    try:
-        conn = http.client.HTTPSConnection("ndp-staging.sdsc.edu")
-        headers = {
-            'Authorization': f'Bearer {token}',
-            'Content-Type': 'application/json'
-        }
-
-        payload = json.dumps({
-            "pvc_id": pvc_id,
-            "status": "Active",
-            "last_mounted": datetime.utcnow().isoformat()
-        })
-
-        conn.request("PUT", "/workspaces-api/update_pvc", body=payload, headers=headers)
-        response = conn.getresponse()
-
-        if response.status == 200:
-            print(f"PVC with id {pvc_id} updated succesfully")
-        else:
-            print(f"Failed to update PVC with id {pvc_id}")
-
-    except (http.client.HTTPException, TimeoutError, json.JSONDecodeError, socket.timeout) as e:
-        return f"Exception occurred: {str(e)}"
 
 async def pre_spawn_hook(spawner):
     config.load_incluster_config()
@@ -579,66 +489,67 @@ async def pre_spawn_hook(spawner):
     spawner.environment.update({"WORKSPACE_API_URL": WORKSPACE_API_URL})
     spawner.environment.update({"REFRESH_EVERY_SECONDS": str(REFRESH_EVERY_SECONDS)})
 
-    PVCs = await get_user_pvcs(spawner.access_token)
-    if PVCs:
-        print(f"USER SHARED {PVCs}")
-        folder_names = []
-        init_containers = []
-        for pvc in PVCs:
-            try:
-                folder_name = pvc['folder_name'].replace(" ", "-")
-                id_short = pvc['subgroup_id'][:5]
-                if folder_name in folder_names:
-                    folder_name = folder_name+claim_name[-5:]
-                folder_names.append(folder_name)
-                claim_name = pvc['claim_name']
-                volume_name = pvc['volume_id']
-            except:
-                pass
-            try:
-                api.read_namespaced_persistent_volume_claim(name=claim_name, namespace=NAMESPACE)
-            except ApiException as e:
-                print(e)
-                if e.status == 404:
-                    print(f"Creating PVC {claim_name}")
-                    pvc_manifest = {
-                            'apiVersion': 'v1',
-                            'kind': 'PersistentVolumeClaim',
-                            'metadata': {'name': claim_name, 'namespace': NAMESPACE},
-                            'spec': {
-                                'accessModes': ['ReadWriteMany'],
-                                'resources': {'requests': {'storage': '5Gi'}},
-                                'storageClassName': 'rook-cephfs-central'
-                            }
-                        }
-                    api.create_namespaced_persistent_volume_claim(namespace=NAMESPACE, body=pvc_manifest)
-                    print(f"PVC {claim_name} created successfully.")
-                else:
-                    print(f"Error creating PVC {claim_name}: {e}!!!!!!")
-                    raise
-            logging.info(f"Adding volume and mount for group {folder_name}")
-            init_containers.append({
-                    'name': f'set-permissions-{id_short}',
-                    'image': 'alpine',
-                    'command': ['sh', '-c', f'chmod -R 0777 /shared-storage/{folder_name}'],
-                    'volumeMounts': [{
-                        'name': volume_name,
-                        'mountPath': f'/shared-storage/{folder_name}'
-                    }]
-                })
-            spawner.extra_volume_mounts.append({
-                    'name': volume_name,
-                    'mountPath': f'/home/jovyan/work/{folder_name}/'
-                })
-            spawner.extra_volumes.append({
-                    'name': volume_name,
-                    'persistentVolumeClaim': {'claimName': claim_name}
-                })
-            
-            await update_pvc(spawner.access_token, pvc['pvc_id'])
-        spawner.extra_pod_config = spawner.extra_pod_config or {}
-        spawner.extra_pod_config.setdefault('initContainers', []).extend(init_containers)
-    
+    # try:
+    #     groups = await get_user_groups(spawner.access_token)
+    #     if groups:
+    #         id_lst = []
+    #         init_containers = []
+    #         for group in groups:
+    #             group_id = group['subgroup_id']
+    #             group_type = group['type_of_entity']
+
+    #             if group_id not in id_lst and group_type == 'data_challenge':
+    #                 id_lst.append(group_id)
+    #                 id_short = group_id[0:13]
+    #                 group_name = group['group_name'].replace(" ", "-")
+    #                 pvc_name = f'claim-ndpgroups-{id_short}'
+    #                 volume_name = f'volume-ndpgroups-{id_short}'
+    #                 try:
+    #                     api.read_namespaced_persistent_volume_claim(name=pvc_name, namespace=NAMESPACE)
+    #                 except ApiException as e:
+    #                     print(e)
+    #                     if e.status == 404:
+    #                         print(f"Creating PVC {pvc_name}")
+    #                         pvc_manifest = {
+    #                             'apiVersion': 'v1',
+    #                             'kind': 'PersistentVolumeClaim',
+    #                             'metadata': {'name': pvc_name, 'namespace': NAMESPACE},
+    #                             'spec': {
+    #                                 'accessModes': ['ReadWriteMany'],
+    #                                 'resources': {'requests': {'storage': '5Gi'}},
+    #                                 'storageClassName': 'rook-cephfs-central'
+    #                             }
+    #                         }
+    #                         api.create_namespaced_persistent_volume_claim(namespace=NAMESPACE, body=pvc_manifest)
+    #                         print(f"PVC {pvc_name} created successfully.")
+    #                     else:
+    #                         print(f"Error creating PVC {pvc_name}: {e}!!!!!!")
+    #                         raise
+    #                 logging.info(f"Adding volume and mount for group {group_name}")
+    #                 init_containers.append({
+    #                     'name': f'set-permissions-{id_short}',
+    #                     'image': 'alpine',
+    #                     'command': ['sh', '-c', f'chmod -R 0777 /shared-storage/{group_name}-{id_short[0:5]}'],
+    #                     'volumeMounts': [{
+    #                         'name': volume_name,
+    #                         'mountPath': f'/shared-storage/{group_name}-{id_short[0:5]}'
+    #                     }]
+    #                 })
+    #                 spawner.volume_mounts.append({
+    #                     'name': volume_name,
+    #                     'mountPath': f'/home/jovyan/work/{group_name}-Shared-Storage-{id_short[0:5]}/'
+    #                 })
+    #                 spawner.volumes.append({
+    #                     'name': volume_name,
+    #                     'persistentVolumeClaim': {'claimName': pvc_name}
+    #                 })
+    #         spawner.extra_volumes = spawner.volumes
+    #         spawner.extra_volume_mounts = spawner.volume_mounts
+    #         spawner.extra_pod_config = spawner.extra_pod_config or {}
+    #         spawner.extra_pod_config.setdefault('initContainers', []).extend(init_containers)
+    #         spawner.environment.update({'USER_GROUPS': ','.join(groups)})
+    # except:
+    #     pass
 
 c.JupyterHub.template_paths = ['/etc/jupyterhub/custom']
 c.JupyterHub.spawner_class = MySpawner
