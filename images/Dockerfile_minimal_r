@@ -1,0 +1,40 @@
+FROM quay.io/jupyter/base-notebook:latest
+
+WORKDIR /home/jovyan/work
+
+USER root
+
+# Install Git and system dependencies for R and IRkernel
+RUN apt-get update && apt-get install -y --fix-missing --no-install-recommends \
+    git \
+    r-base \
+    r-base-dev \
+    libcurl4-openssl-dev \
+    libssl-dev \
+    libxml2-dev \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+RUN chmod a+x /usr/bin/git
+
+# Fix ownership and permissions
+RUN chown -R jovyan:users /home/jovyan && \
+    mkdir -p /home/jovyan/.local/share/jupyter/runtime && \
+    chown -R jovyan:users /home/jovyan/.local
+
+# Allow passwordless sudo for jovyan
+RUN echo 'jovyan ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers
+
+# Install Python dependencies
+RUN pip install --no-cache-dir \
+    requests \
+    jupyterlab==4.2.4
+
+# Install IRkernel and register it globally
+RUN mkdir -p /usr/local/lib/R/site-library && \
+    chmod -R a+w /usr/local/lib/R/site-library && \
+    R -e "install.packages('IRkernel', repos='https://cloud.r-project.org'); IRkernel::installspec(user = FALSE)"
+
+# Switch back to non-root
+USER jovyan
+
+#docker build ./images -f ./images/Dockerfile_minimal_r -t gitlab-registry.nrp-nautilus.io/ndp/ndp-docker-images/jhub-spawn:minimal_r_0.0.1 --platform=linux/amd64 --no-cache

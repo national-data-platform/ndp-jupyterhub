@@ -1,0 +1,41 @@
+# the image should be ran with 1GPU, 12 cores, 64 gb, NVIDIA a100-80gb
+
+FROM quay.io/jupyter/base-notebook:latest
+
+WORKDIR /home/jovyan/work
+USER root
+
+# install CUDA
+RUN wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64/cuda-keyring_1.1-1_all.deb
+RUN wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2004/x86_64/cuda-keyring_1.1-1_all.deb && sudo dpkg -i cuda-keyring_1.1-1_all.deb && apt-get update && apt-get -y install cuda-toolkit-12-3
+RUN sudo apt-get update
+RUN sudo apt-get -y install cuda-toolkit-12-3
+
+# install libraries
+RUN apt-get install --yes --no-install-recommends  git wget curl
+RUN pip install fschat scipy
+RUN pip install fschat[model_worker,webui] pydantic==1.10.13
+RUN pip install langchain openai chromadb
+RUN pip install pypdf
+
+# set write persmissions
+RUN chown -R jovyan /home/jovyan/
+
+# make sudo access without password
+RUN echo 'jovyan ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers
+
+
+# Copy the entrypoint script into the container
+COPY entrypoint_llm.sh /entrypoint_llm.sh
+
+# Make the entrypoint script executable
+RUN chmod +x /entrypoint_llm.sh
+
+USER jovyan
+
+# Set the entrypoint script as the entrypoint
+ENTRYPOINT ["/entrypoint_llm.sh"]
+
+
+
+# docker build ./images/LLM -f ./images/LLM/Dockerfile_llm_jupyterhub_big -t gitlab-registry.nrp-nautilus.io/ndp/ndp-docker-images/jhub-spawn:llm_v0.0.0.15_big --platform=linux/amd64 --no-cache

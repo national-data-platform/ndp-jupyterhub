@@ -1,0 +1,30 @@
+# Copy this file to site-values.yaml and adjust the values for your environment.
+# Only include the keys you need to override; Helm will merge this on top of values.yaml.
+
+jupyterhub:
+  hub:
+    config:
+      GenericOAuthenticator:
+        oauth_callback_url: https://<your-host.example.com>/jupyter/hub/oauth_callback
+        logout_redirect_url: https://idp.nationaldataplatform.org/realms/NDP/protocol/openid-connect/logout?post_logout_redirect_uri=https://<your-host.example.com>/jupyter/&client_id=<your-kc-client-id>
+        allowed_groups:
+          - jhub_user
+          - /jhub_user
+        admin_users:
+          - <admin@example.com>
+    extraEnv:
+      NDP_JUPYTERHUB_NAMESPACE: ndp-jhub
+      NDP_KEYCLOAK_URL: https://idp.nationaldataplatform.org
+      NDP_KEYCLOAK_REALM: NDP
+      PVC_STORAGE_CLASS: <microk8s-hostpath>
+    db:
+      pvc:
+        storageClassName: <microk8s-hostpath>
+  singleuser:
+    storage:
+      dynamic:
+        storageClass: <microk8s-hostpath>
+  ingress:
+    ingressClassName: <nginx>
+    hosts:
+      - <your-host.example.com>

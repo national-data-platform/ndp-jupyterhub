@@ -1,0 +1,28 @@
+# the image should be ran with 1GPU, 12 cores, 64 gb, NVIDIA a100-80gb
+
+FROM quay.io/jupyter/base-notebook:latest
+
+WORKDIR /home/jovyan/work
+USER root
+
+# install libraries
+RUN sudo apt-get update
+RUN apt-get install --yes --no-install-recommends  git wget curl
+RUN pip install langchain openai chromadb tiktoken
+RUN pip install langchain-community langchain-core
+RUN pip install pypdf
+
+# copy default content from git into image
+RUN git clone https://github.com/national-data-platform/jupyter-notebooks
+RUN cp -R ./jupyter-notebooks/llm/. .
+RUN rm -rf ./jupyter-notebooks
+
+# set write persmissions
+RUN chown -R jovyan /home/jovyan/
+
+# make sudo access without password
+RUN echo 'jovyan ALL=(ALL) NOPASSWD: ALL' >> /etc/sudoers
+
+USER jovyan
+
+# docker build ./images/LLM -f ./images/LLM/Dockerfile_llm_jupyterhub_small -t gitlab-registry.nrp-nautilus.io/ndp/ndp-docker-images/jhub-spawn:llm_v0.0.0.11_small --platform=linux/amd64 --no-cache

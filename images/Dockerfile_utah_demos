@@ -1,0 +1,31 @@
+FROM quay.io/jupyter/base-notebook:latest
+
+WORKDIR /home/jovyan/work
+
+USER root
+
+RUN apt-get update && apt-get install -y \
+    git
+
+RUN git clone https://github.com/national-data-platform/jupyter-notebooks
+
+# Remove `os` from the Earthscope requirements file
+RUN sed -i '/^os$/d' /home/jovyan/work/jupyter-notebooks/utah_demos/Earthscope/requirements.txt
+
+# Install dependencies for Earthscope
+RUN pip install -r /home/jovyan/work/jupyter-notebooks/utah_demos/Earthscope/requirements.txt
+RUN pip install --break-system-packages git+https://github.com/dpkp/kafka-python.git
+
+# Install dependencies for Sage
+RUN pip install -r /home/jovyan/work/jupyter-notebooks/utah_demos/sage/requirements.txt
+
+# Install dependencies for NOAA
+RUN pip install --no-cache-dir -r /home/jovyan/work/jupyter-notebooks/utah_demos/NOAA/requirements.txt
+
+RUN cp -R ./jupyter-notebooks/utah_demos/. . && \
+    rm -rf ./jupyter-notebooks && \
+    chown -R jovyan:users /home/jovyan/work
+
+USER jovyan
+
+# docker build ./images -f ./images/Dockerfile_utah_demos -t gitlab-registry.nrp-nautilus.io/ndp/ndp-docker-images/jhub-spawn:utah_demos_0.0.0.1 --platform=linux/amd64 --no-cache

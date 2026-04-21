@@ -1,0 +1,78 @@
+{% extends "page.html" %}
+{% if announcement_spawn is string %}
+  {% set announcement = announcement_spawn %}
+{% endif %}
+{% block main %}
+    <div class="container"
+       style="
+          background-image: url('{{ static_url("images/ndp-landing-image.png") }}');
+          background-position: center;
+          background-size: contain;
+          background-repeat: no-repeat;
+          background-color: rgba(255, 255, 255, 0.9);
+    ">
+    {% block heading %}
+      <div class="row text-center">
+        <h1>NDP JupyterHub Server Options</h1>
+          <p><a href="https://portal.nrp-nautilus.io/resources" target="_blank">Available resources page</a></p>
+      </div>
+    {% endblock heading %}
+    <div class="row justify-content-center" style="
+        display: flex;
+        justify-content: center;
+    ">
+      <div class="col-md-8">
+        {% if for_user and user.name != for_user.name -%}
+          <p>Spawning server for {{ for_user.name }}</p>
+        {% endif -%}
+        {% if error_message -%}<p class="spawn-error-msg alert alert-danger">Error: {{ error_message }}</p>{% endif %}
+        <form enctype="multipart/form-data"
+              id="spawn_form"
+              action="{{ url | safe }}"
+              method="post"
+              role="form">
+          {{ spawner_options_form | safe }}
+<!--          <br>-->
+          <div class="feedback-container" style="
+            display: flex;
+            justify-content: center;
+           ">
+            <button type="submit" class="btn btn-lg btn-primary" style="
+            background-color: #3182ce;
+            width: 300px;
+            height: 40px;
+            padding: 5px 5px;
+            font-size: 15px;
+
+
+
+
+            ">Start</button>
+            <div class="feedback-widget hidden">
+              <i class="fa fa-spinner"></i>
+            </div>
+          </div>
+        </form>
+<!--          <p>The National Data Platform was funded by-->
+<!--              <a target="_blank" rel="noopener" class="chakra-link css-spn4bz" href="https://www.nsf.gov/awardsearch/showAward?AWD_ID=2333609">NSF 2333609</a>-->
+<!--               under CI, CISE Research Resources programs. Any opinions, findings, conclusions, or recommendations expressed in this material are those of the author(s) and do not necessarily reflect the views of the funders.-->
+<!--          </p>-->
+      </div>
+
+
+
+    </div>
+  </div>
+{% endblock main %}
+{% block script %}
+  {{ super() }}
+  <script>
+    // setup onSubmit feedback
+    $('form').submit((e) => {
+      var form = $(e.target);
+      form.find('.feedback-container>input').attr('disabled', true);
+      form.find('.feedback-container>*').toggleClass('hidden');
+      form.find('.feedback-widget>*').toggleClass('fa-pulse');
+    });
+  </script>
+{% endblock script %}

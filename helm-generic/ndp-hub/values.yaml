@@ -1,0 +1,159 @@
+
+jupyterhub:
+  hub:
+    image:
+      name: yutianqin/ndp-k8s-hub
+      tag: "v1"
+    extraEnv:
+      JUPYTERHUB_METRICS_API_KEY:
+        valueFrom:
+          secretKeyRef:
+            name: jupyterhub-metrics-secret
+            key: metrics-api-key
+      NDP_JUPYTERHUB_NAMESPACE: ndp-jhub
+      NDP_KEYCLOAK_URL: https://idp.nationaldataplatform.org
+      NDP_KEYCLOAK_REALM: NDP
+      PVC_STORAGE_CLASS: microk8s-hostpath
+    existingSecret: jupyterhub-secret # Passing keycloak client_id and client_secret into hub server
+    config:
+      GenericOAuthenticator:
+        oauth_callback_url: https://jhub.example.com/jupyter/hub/oauth_callback
+        logout_redirect_url: https://idp.nationaldataplatform.org/realms/NDP/protocol/openid-connect/logout?post_logout_redirect_uri=https://jhub.example.com/jupyter&client_id=ndp_endpoint_jhub
+        login_service: keycloak
+        username_claim: preferred_username
+        userdata_params:
+          state: state
+        allow_all: False
+        allowed_groups: ["jhub_user"]
+        auto_login: True
+        enable_auth_state: True
+        admin_users: ["admin@example.com"]
+        scope:
+          - openid
+          - profile
+      JupyterHub:
+        authenticator_class: generic-oauth
+        base_url: /jupyter
+    baseUrl: /jupyter
+    service:
+      type: ClusterIP
+      annotations: {}
+      ports:
+        nodePort:
+      loadBalancerIP:
+    deploymentStrategy:
+      type: Recreate
+    db:
+      type: sqlite-pvc
+      pvc:
+        accessModes:
+          - ReadWriteOnce
+        storage: 10Gi
+        storageClassName: microk8s-hostpath
+    resources:
+      limits:
+        cpu: "2"
+        memory: 1Gi
+      requests:
+        cpu: 100m
+        memory: 512Mi
+    networkPolicy:
+      enabled: false
+    extraConfig: {}
+
+  proxy:
+    secretToken: ""  # Generate with: openssl rand -hex 32
+    service:
+      type: ClusterIP
+    chp:
+      resources:
+        limits:
+          cpu: "2"
+          memory: 1Gi
+        requests:
+          cpu: 200m
+          memory: 512Mi
+
+  singleuser:
+    uid: 1000
+    fsGid: 100
+    allowPrivilegeEscalation: true
+    extraPodConfig:
+      securityContext:
+          fsGroupChangePolicy: "OnRootMismatch"
+    cloudMetadata:
+      blockWithIptables: false
+    networkPolicy:
+      enabled: false
+    initContainers:
+    - name: volume-permissions
+      image: busybox
+      command: ["sh", "-c", "chmod 777 -R /home/jovyan/work/_User-Persistent-Storage"]
+      volumeMounts:
+        - mountPath: /home/jovyan/work/_User-Persistent-Storage
+          name: volume-{username}
+    storage:
+      extraLabels: {}
+      capacity: 1Gi
+      homeMountPath: /home/jovyan/work/_User-Persistent-Storage
+      dynamic:
+        storageClass: microk8s-hostpath
+        pvcNameTemplate: claim-{username}
+        volumeNameTemplate: volume-{username}
+        storageAccessModes: [ReadWriteOnce]
+
+    image:
+      name: gitlab-registry.nrp-nautilus.io/ndp/ndp-docker-images/jhub-spawn
+      tag: minimal_r_0.0.1  
+    startTimeout: 1200
+    cpu:
+      limit: 2
+      guarantee: 1
+    memory:
+      limit: 4G
+      guarantee: 4G
+    extraResource:
+      limits: {}
+      guarantees: {}
+    cmd: jupyterhub-singleuser
+    defaultUrl: "/lab"
+
+  scheduling:
+    userScheduler:
+      enabled: false
+    userPlaceholder:
+      enabled: false
+  # prePuller relates to the hook|continuous-image-puller DaemonsSets
+  prePuller:
+    hook:
+      enabled: false
+    continuous:
+      enabled: false
+
+  ingress:
+    enabled: true
+    ingressClassName: public
+    hosts:
+      - jhub.example.com
+    # default path: host/{jupyterhub.hub.baseUrl}/{pathSuffix}
+    pathSuffix: ""
+    # Additional path to route to hub (when using microk8s ingress addon):
+    # To prevent the situation where only /jupyter/ work and /jupyter does not correctly route
+    # extraPaths:
+    #   - path: /jupyter
+    #     pathType: Prefix
+    #     backend:
+    #       service:
+    #         name: proxy-public
+    #         port:
+    #           name: http
+    tls: []
+
+  cull:
+    enabled: true
+    users: false # stop the user's server but keep the user account in jupyterhub's db
+    removeNamedServers: false # whether to remove named servers (if false, cull only the default server)
+    timeout: 3600 # seconds of inactivity before culling a server
+    every: 600 # check every 600 seconds for idle servers to cull
+    concurrency: 10 # how many servers to cull in parallel
+    maxAge: 0 # maximum age of a server before it is culled, even if it is active. 0 means no maximum age.

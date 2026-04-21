@@ -1,0 +1,53 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: jupyterhub-cleanup
+  namespace: ndp-test  # Change to your actual namespace
+spec:
+  schedule: "0 */12 * * *"  # Runs every 12 hours (adjust as needed)
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          serviceAccountName: hub  # Ensure this account has pod delete permissions
+          containers:
+          - name: cleanup
+            image: bitnamilegacy/kubectl:latest  # Uses a lightweight kubectl image
+            command:
+              - /bin/sh
+              - "-c"
+              - |
+                NAMESPACE=ndp-test
+
+                echo "Running JupyterHub user pod cleanup at $(date)"
+                
+                for pod in $(kubectl get pods -n $NAMESPACE --selector=component=singleuser-server -o jsonpath='{.items[*].metadata.name}')
+                do
+                    echo "Checking pod: $pod"
+
+                    # Fetch logs once
+                    logs=$(kubectl logs $pod -n $NAMESPACE)
+                    
+                  echo "$logs" | grep -q "HTTP 403: Forbidden"
+                  exit_status_1=$?
+                #    echo "$exit_status_1"
+
+                  echo "$logs" | grep -q "Error notifying Hub of activity"
+                  exit_status_2=$?
+                #    echo "$exit_status_2"
+                  
+                  if [ $exit_status_1 -eq 0 ] && [ $exit_status_2 -eq 0 ]; then
+                    echo "Idle pod detected - $pod. Terminating pod."
+                    kubectl delete pod $pod -n $NAMESPACE
+                  else
+                    echo "$pod is active."
+                  fi
+                done
+            resources:
+              requests:
+                cpu: "100m"  # Request 100m CPU (adjust as needed)
+                memory: "256Mi"  # Request 256Mi memory (adjust as needed)
+              limits:
+                cpu: "500m"  # Limit CPU to 500m (adjust as needed)
+                memory: "512Mi"  # Limit memory to 512Mi (adjust as needed)
+          restartPolicy: OnFailure
