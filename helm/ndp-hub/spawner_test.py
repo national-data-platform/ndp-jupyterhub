@@ -63,6 +63,15 @@ original_profile_list = [
         }
     },
     {
+        'display_name': "Minimal NDP Starter Jupyter Lab + RStudio + VSCode",
+        'slug': "12",
+        'default': False,
+        'kubespawner_override': {
+            'image': 'gitlab-registry.nrp-nautilus.io/ndp/ndp-docker-images/jhub-spawn:rstudio_vscode_v0.0.6',
+            'default_url': '/lab'
+        }
+    },
+    {
         'display_name': "NDP Catalog Search",
         'default': False,
         'slug': "10",
