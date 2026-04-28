@@ -1,0 +1,151 @@
+# jhub-api-culler.yaml
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: jhub-api-culler
+  namespace: ndp-test
+spec:
+  schedule: "*/30 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          serviceAccountName: jhub-api-culler
+          restartPolicy: OnFailure
+          containers:
+            - name: culler
+              image: python:3.11-slim
+              resources:
+                requests:
+                  cpu: "100m"
+                  memory: "128Mi"
+                limits:
+                  cpu: "120m"
+                  memory: "154Mi"
+              env:
+                - name: HUB_API_URL
+                  value: "http://hub:8081/hub/api"
+                - name: HUB_TOKEN
+                  valueFrom:
+                    secretKeyRef:
+                      name: jhub-api-culler-token
+                      key: token
+                - name: IDLE_THRESHOLD_MINUTES
+                  value: "90"
+                - name: DRY_RUN
+                  value: "true"
+              command: [python, -c]
+              args:
+                - |
+                  import os, json, datetime, urllib.request, urllib.error, sys
+                  from urllib.parse import quote
+
+                  HUB       = os.environ["HUB_API_URL"]
+                  TOKEN     = os.environ["HUB_TOKEN"]
+                  THRESHOLD = datetime.timedelta(
+                                  minutes=float(os.environ.get("IDLE_THRESHOLD_MINUTES", "90")))
+                  DRY_RUN   = os.environ.get("DRY_RUN", "false").lower() == "true"
+
+                  def hub(method, path, expected=(200, 204)):
+                      req = urllib.request.Request(
+                          f"{HUB}{path}",
+                          headers={"Authorization": f"token {TOKEN}"},
+                          method=method,
+                      )
+                      try:
+                          with urllib.request.urlopen(req) as r:
+                              body = r.read()
+                              return json.loads(body) if body else None
+                      except urllib.error.HTTPError as e:
+                          if e.code not in expected:
+                              print(f"  WARN  {method} {path} → HTTP {e.code}", flush=True)
+                          return None
+
+                  def get_kernels(uname, server):
+                      state    = server.get("state", {})
+                      dns_name = state.get("dns_name")
+                      if not dns_name:
+                          print(f"  WARN  no dns_name for {uname}, skipping kernel check", flush=True)
+                          return []
+                      url = f"http://{dns_name}:8888/api/kernels"
+                      req = urllib.request.Request(
+                          url,
+                          headers={"Authorization": f"token {TOKEN}"},
+                          method="GET",
+                      )
+                      try:
+                          with urllib.request.urlopen(req, timeout=10) as r:
+                              return json.loads(r.read()) or []
+                      except urllib.error.HTTPError as e:
+                          body = e.read().decode('utf-8', errors='replace')
+                          print(f"  WARN  kernel API for {uname} → HTTP {e.code}: {body[:100]}", flush=True)
+                          return []
+                      except Exception as e:
+                          print(f"  WARN  kernel API for {uname} → {e}", flush=True)
+                          return []
+
+                  def parse_dt(s):
+                      if not s:
+                          return None
+                      return datetime.datetime.fromisoformat(
+                          s.replace("Z", "+00:00")
+                      ).replace(tzinfo=None)
+
+                  now = datetime.datetime.utcnow()
+                  print(f"[{now.isoformat()}Z]  dry_run={DRY_RUN}  "
+                        f"threshold={THRESHOLD}", flush=True)
+
+                  users = hub("GET", "/users") or []
+                  culled, kept_busy, kept_recent, errors = 0, 0, 0, 0
+
+                  for user in users:
+                      for sname, server in (user.get("servers") or {}).items():
+                          if not server.get("ready"):
+                              continue
+
+                          uname = user["name"]
+                          label = f"{uname}/{sname or 'default'}"
+
+                          # ── 1. Check kernel execution state via direct pod DNS ──
+                          kernels = get_kernels(uname, server)
+
+                          if any(k.get("execution_state") == "busy" for k in kernels):
+                              print(f"  KEEP  {label}  — kernel busy (job running)", flush=True)
+                              kept_busy += 1
+                              continue
+
+                          # ── 2. All kernels idle — check how long ──────────────
+                          candidates = [parse_dt(server.get("last_activity"))]
+                          for k in kernels:
+                              candidates.append(parse_dt(k.get("last_activity")))
+
+                          last_active = max((t for t in candidates if t), default=None)
+                          idle_for    = (now - last_active) if last_active else THRESHOLD + datetime.timedelta(seconds=1)
+
+                          if idle_for < THRESHOLD:
+                              print(f"  KEEP  {label}  — idle {idle_for}, under threshold",
+                                    flush=True)
+                              kept_recent += 1
+                              continue
+
+                          # ── 3. Cull ───────────────────────────────────────────
+                          idle_h = idle_for.total_seconds() / 3600
+                          if DRY_RUN:
+                              print(f"  DRY   {label}  — would cull (idle {idle_h:.1f}h)",
+                                    flush=True)
+                          else:
+                              encoded = quote(uname, safe='')
+                              path = (f"/users/{encoded}/server"
+                                      if not sname
+                                      else f"/users/{encoded}/servers/{sname}")
+                              hub("DELETE", path, expected=(200, 202, 204))
+                              print(f"  CULL  {label}  — idle {idle_h:.1f}h → deleted",
+                                    flush=True)
+                              culled += 1
+
+                  print(f"\nDone. culled={culled}  kept_busy={kept_busy}  "
+                        f"kept_recent={kept_recent}  errors={errors}", flush=True)
+                  sys.exit(1 if errors else 0)

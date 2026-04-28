@@ -774,6 +774,15 @@ c.JupyterHub.load_roles.append(
     }
 )
 
+c.JupyterHub.services.append(
+    {
+        "name": "jhub-api-culler",
+        "api_token": os.environ["CULLER_API_TOKEN"],
+    }
+)
+
+#random comment to trigger redeploy
+
 # check only once per day not to block single-user
 c.MyAuthenticator.auth_refresh_age = 86300
 c.MyAuthenticator.refresh_pre_spawn = True

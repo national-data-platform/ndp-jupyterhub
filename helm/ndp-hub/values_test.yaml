@@ -16,6 +16,11 @@ jupyterhub:
           secretKeyRef:
             name: jupyterhub-metrics-secret
             key: metrics-api-key
+      CULLER_API_TOKEN:
+        valueFrom:
+          secretKeyRef:
+            name: jhub-api-culler-token
+            key: token
     existingSecret: jupyterhub-secret
     config:
       GenericOAuthenticator:
@@ -171,7 +176,7 @@ jupyterhub:
         - ndp-test-jupyterhub.nrp-nautilus.io
 
   cull:
-    enabled: true
+    enabled: false
     users: false
     removeNamedServers: false
     timeout: 3600

@@ -1,0 +1,15 @@
+# jhub-cull-rbac.yaml
+# apiVersion: v1
+# kind: Secret
+# metadata:
+#   name: jhub-api-culler-token
+#   namespace: ndp-test
+# type: Opaque
+# stringData:
+#   token: "fb5252063fa1e5d2e196f4c83b250aaa49b1ca53f62cd1924571438dc7f68b0e"
+# ---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: jhub-api-culler
+  namespace: ndp-test
