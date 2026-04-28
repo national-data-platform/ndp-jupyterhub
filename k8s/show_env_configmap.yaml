@@ -2,7 +2,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: env-contents-manager-config
-  namespace: ndp-test
+  namespace: ndp
 data:
   jupyter_server_config.py: |
     c = get_config()  # noqa

@@ -1,6 +1,6 @@
 # Notes:
 # NDP PROD Nautilus namespace: ndp
-# Install client-secret k8s secret (need to insert it in the file ndp-hub/my_secret.yaml): kubectl create secret generic jupyterhub-secret --from-file=values.yaml=ndp-hub/my_secret.yaml -n ndp-staging
+# Install client-secret k8s secret (need to insert it in the file ndp-hub/my_secret.yaml): kubectl create secret generic jupyterhub-secret --from-file=values.yaml=ndp-hub/my_secret.yaml -n ndp
 # Install from ./helm folder: helm upgrade --cleanup-on-fail --install ndp-hub ndp-hub --kube-context nautilus --namespace ndp --values ndp-hub/values_prod.yaml
 # Uninstall: helm uninstall ndp-hub --kube-context nautilus --namespace ndp
 # URL: ndp-jupyterhub.nrp-nautilus.io
@@ -23,7 +23,7 @@ jupyterhub:
         authorize_url: https://idp.nationaldataplatform.org/realms/NDP/protocol/openid-connect/auth
         token_url: https://idp.nationaldataplatform.org/realms/NDP/protocol/openid-connect/token
         userdata_url: https://idp.nationaldataplatform.org/realms/NDP/protocol/openid-connect/userinfo
-        logout_redirect_url: https://idp.nationaldataplatform.org/realms/NDP/protocol/openid-connect/logout?post_logout_redirect_uri=https://ndp-staging-jupyterhub.nrp-nautilus.io/&client_id=ndp_jupyterhub_prod
+        logout_redirect_url: https://idp.nationaldataplatform.org/realms/NDP/protocol/openid-connect/logout?post_logout_redirect_uri=https://ndp-jupyterhub.nrp-nautilus.io/&client_id=ndp_jupyterhub_prod
         login_service: keycloak
         username_claim: preferred_username
         userdata_params:
@@ -89,6 +89,33 @@ jupyterhub:
 
       default.py: |
 # spawner_prod.py code here
+
+#to show env files in directory
+      env-files.py: |
+        def modify_pod_hook(spawner, pod):
+            from kubernetes_asyncio.client.models import V1Volume, V1VolumeMount, V1ConfigMapVolumeSource
+
+            pod.spec.volumes = (pod.spec.volumes or []) + [
+                V1Volume(
+                    name="env-contents-manager",
+                    config_map=V1ConfigMapVolumeSource(name="env-contents-manager-config")
+                )
+            ]
+            pod.spec.containers[0].volume_mounts = (pod.spec.containers[0].volume_mounts or []) + [
+                V1VolumeMount(
+                    name="env-contents-manager",
+                    mount_path="/home/jovyan/.jupyter/jupyter_server_config.py",
+                    sub_path="jupyter_server_config.py"
+                ),
+                V1VolumeMount(
+                    name="env-contents-manager",
+                    mount_path="/opt/conda/share/jupyter/lab/settings/overrides.json",
+                    sub_path="overrides.json"
+                )
+            ]
+            return pod
+
+        c.KubeSpawner.modify_pod_hook = modify_pod_hook
 
   proxy:
     secretToken: ""  # Generate with: openssl rand -hex 32
