@@ -1,0 +1,28 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: env-contents-manager-config
+  namespace: ndp-test
+data:
+  jupyter_server_config.py: |
+    c = get_config()  # noqa
+    from jupyter_server.services.contents.largefilemanager import AsyncLargeFileManager
+    import fnmatch
+
+    class EnvOnlyContentsManager(AsyncLargeFileManager):
+        def should_list(self, name):
+            if fnmatch.fnmatch(name, ".env*"):
+                return True
+            if name.startswith("."):
+                return False
+            return super().should_list(name)
+
+    c.ServerApp.contents_manager_class = EnvOnlyContentsManager
+    c.ContentsManager.allow_hidden = True
+    
+  overrides.json: |
+    {
+      "@jupyterlab/filebrowser-extension:browser": {
+        "showHiddenFiles": true
+      }
+    }
