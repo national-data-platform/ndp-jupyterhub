@@ -133,7 +133,7 @@ jupyterhub:
 
     image:
       name: gitlab-registry.nrp-nautilus.io/ndp/ndp-docker-images/jhub-spawn
-      tag: minimal_r_0.0.1
+      tag: rstudio_vscode_v0.0.6
     startTimeout: 1200
     cpu:
       limit: 3
