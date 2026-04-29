@@ -646,6 +646,7 @@ async def pre_spawn_hook(spawner):
     pip_install_command1 = ("pip install --upgrade jupyterlab==4.2.4 jupyter-archive==3.4.0 jupyterlab-launchpad==1.0.1")
     pip_install_command2 = ("pip install jupyterlab-git==0.50.1 --index-url https://gitlab.nrp-nautilus.io/api/v4/projects/3930/packages/pypi/simple --user")
     pip_install_command3 = (f"pip install ndp-jupyterlab-extension=={NDP_EXT_VERSION} --index-url https://gitlab.nrp-nautilus.io/api/v4/projects/3930/packages/pypi/simple --user")
+    pip_install_command4 = ("pip install 'pexpect>=4.9' --user")
     pelican_exe_command = 'wget -O - "https://dl.pelicanplatform.org/latest/pelican_$(uname -s)_$(uname -m).tar.gz" | tar zx -C /home/jovyan/.local/bin/ --strip-components=1'
 
     # Modify the spawner's start command to include the pip install
@@ -659,6 +660,7 @@ async def pre_spawn_hook(spawner):
         f"&& {pip_install_command1} || true "
         f"&& {pip_install_command2} || true "
         f"&& {pip_install_command3} || true "
+        f"&& {pip_install_command4} || true "
         f"&& {pelican_exe_command} || true "
         f"&& cd /home/jovyan/work || true "
         f"&& exec {' '.join(original_cmd)}"
