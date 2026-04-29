@@ -91,6 +91,33 @@ jupyterhub:
       default.py: |
 # spawner_test.py code here
 
+#to show env files in directory (Apply the configmap k8s/show_env_configmap.yaml to the namespace for this to work)
+      env-files.py: |
+        def modify_pod_hook(spawner, pod):
+            from kubernetes_asyncio.client.models import V1Volume, V1VolumeMount, V1ConfigMapVolumeSource
+
+            pod.spec.volumes = (pod.spec.volumes or []) + [
+                V1Volume(
+                    name="env-contents-manager",
+                    config_map=V1ConfigMapVolumeSource(name="env-contents-manager-config")
+                )
+            ]
+            pod.spec.containers[0].volume_mounts = (pod.spec.containers[0].volume_mounts or []) + [
+                V1VolumeMount(
+                    name="env-contents-manager",
+                    mount_path="/home/jovyan/.jupyter/jupyter_server_config.py",
+                    sub_path="jupyter_server_config.py"
+                ),
+                V1VolumeMount(
+                    name="env-contents-manager",
+                    mount_path="/opt/conda/share/jupyter/lab/settings/overrides.json",
+                    sub_path="overrides.json"
+                )
+            ]
+            return pod
+
+        c.KubeSpawner.modify_pod_hook = modify_pod_hook
+
   proxy:
     secretToken: ""  # Generate with: openssl rand -hex 32
     service:
