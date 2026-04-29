@@ -90,7 +90,7 @@ jupyterhub:
       default.py: |
 # spawner_staging.py code here
 
-#to show env files in directory
+#to show env files in directory (Apply the configmap k8s/show_env_configmap.yaml to the namespace for this to work)
       env-files.py: |
         def modify_pod_hook(spawner, pod):
             from kubernetes_asyncio.client.models import V1Volume, V1VolumeMount, V1ConfigMapVolumeSource
