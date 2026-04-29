@@ -1,6 +1,6 @@
 # Notes:
 # NDP PROD Nautilus namespace: ndp
-# Install client-secret k8s secret (need to insert it in the file ndp-hub/my_secret.yaml): kubectl create secret generic jupyterhub-secret --from-file=values.yaml=ndp-hub/my_secret.yaml -n ndp-staging
+# Install client-secret k8s secret (need to insert it in the file ndp-hub/my_secret.yaml): kubectl create secret generic jupyterhub-secret --from-file=values.yaml=ndp-hub/my_secret.yaml -n ndp
 # Install from ./helm folder: helm upgrade --cleanup-on-fail --install ndp-hub ndp-hub --kube-context nautilus --namespace ndp --values ndp-hub/values_prod.yaml
 # Uninstall: helm uninstall ndp-hub --kube-context nautilus --namespace ndp
 # URL: ndp-jupyterhub.nrp-nautilus.io
@@ -23,7 +23,7 @@ jupyterhub:
         authorize_url: https://idp.nationaldataplatform.org/realms/NDP/protocol/openid-connect/auth
         token_url: https://idp.nationaldataplatform.org/realms/NDP/protocol/openid-connect/token
         userdata_url: https://idp.nationaldataplatform.org/realms/NDP/protocol/openid-connect/userinfo
-        logout_redirect_url: https://idp.nationaldataplatform.org/realms/NDP/protocol/openid-connect/logout?post_logout_redirect_uri=https://ndp-staging-jupyterhub.nrp-nautilus.io/&client_id=ndp_jupyterhub_prod
+        logout_redirect_url: https://idp.nationaldataplatform.org/realms/NDP/protocol/openid-connect/logout?post_logout_redirect_uri=https://ndp-jupyterhub.nrp-nautilus.io/&client_id=ndp_jupyterhub_prod
         login_service: keycloak
         username_claim: preferred_username
         userdata_params:
