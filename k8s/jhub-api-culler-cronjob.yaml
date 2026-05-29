@@ -3,7 +3,7 @@ apiVersion: batch/v1
 kind: CronJob
 metadata:
   name: jhub-api-culler
-  namespace: ndp-test
+  namespace: ndp
 spec:
   schedule: "*/5 * * * *"
   concurrencyPolicy: Forbid
@@ -34,24 +34,24 @@ spec:
                       name: jhub-api-culler-token
                       key: token
                 - name: CPU_ACTIVE_MILLICORES
-                  value: "10"
+                  value: "1"
                 - name: IDLE_THRESHOLD_MINUTES
-                  value: "120"
+                  value: "360"
                 - name: NAMESPACE
-                  value: "ndp-test"
+                  value: "ndp"
                 - name: DRY_RUN
-                  value: "true"
+                  value: "false"
               command: [python, -c]
               args:
                 - |
-                  import os, json, datetime, urllib.request, urllib.error, sys, ssl
+                  import os, json, datetime, urllib.request, urllib.error, sys, ssl, time
                   from urllib.parse import quote
 
                   HUB         = os.environ["HUB_API_URL"]
                   TOKEN       = os.environ["HUB_TOKEN"]
                   THRESHOLD   = datetime.timedelta(
-                                    minutes=float(os.environ.get("IDLE_THRESHOLD_MINUTES", "120")))
-                  CPU_LIMIT   = float(os.environ.get("CPU_ACTIVE_MILLICORES", "10"))
+                                    minutes=float(os.environ.get("IDLE_THRESHOLD_MINUTES", "360")))
+                  CPU_LIMIT   = float(os.environ.get("CPU_ACTIVE_MILLICORES", "1"))
                   NAMESPACE   = os.environ["NAMESPACE"]
                   DRY_RUN     = os.environ.get("DRY_RUN", "false").lower() == "true"
                   CM_NAME     = "jhub-cpu-history"
@@ -65,20 +65,24 @@ spec:
                   )
                   K8S = "https://kubernetes.default.svc"
 
-                  def hub(method, path, expected=(200, 204)):
+                  HUB_TOKEN_OK = True
+
+                  def check_hub_token():
+                      global HUB_TOKEN_OK
                       req = urllib.request.Request(
-                          f"{HUB}{path}",
+                          f"{HUB}/users",
                           headers={"Authorization": f"token {TOKEN}"},
-                          method=method,
+                          method="GET",
                       )
                       try:
                           with urllib.request.urlopen(req) as r:
-                              body = r.read()
-                              return json.loads(body) if body else None
+                              r.read()
+                              HUB_TOKEN_OK = True
                       except urllib.error.HTTPError as e:
-                          if e.code not in expected:
-                              print(f"  WARN  hub {method} {path} → HTTP {e.code}", flush=True)
-                          return None
+                          HUB_TOKEN_OK = False
+                          print(f"  WARN  Hub token invalid (HTTP {e.code}) — culling disabled. "
+                                f"Update secret jhub-api-culler-token to re-enable.",
+                                flush=True)
 
                   def k8s_req(method, path, body=None, expected=(200,)):
                       data = json.dumps(body).encode() if body else None
@@ -99,6 +103,65 @@ spec:
                               print(f"  WARN  k8s {method} {path} → HTTP {e.code}", flush=True)
                           return None
 
+                  def pod_still_running(pod_name):
+                      result = k8s_req("GET",
+                          f"/api/v1/namespaces/{NAMESPACE}/pods/{pod_name}",
+                          expected=(200, 404),
+                      )
+                      if result is None:
+                          return False
+                      phase = result.get("status", {}).get("phase", "")
+                      return phase == "Running"
+
+                  def k8s_delete_pod(pod_name):
+                      result = k8s_req("DELETE",
+                          f"/api/v1/namespaces/{NAMESPACE}/pods/{pod_name}",
+                          expected=(200, 202),
+                      )
+                      return result is not None
+
+                  def hub_delete_server(uname, sname, pod_name):
+                      if not HUB_TOKEN_OK:
+                          print(f"  SKIP_CULL  {uname}/{sname or 'default'}  "
+                                f"— Hub token invalid, cannot delete. "
+                                f"Fix token then pod will be culled next run.",
+                                flush=True)
+                          return False
+
+                      encoded = quote(uname, safe='')
+                      path = (f"/users/{encoded}/server"
+                              if not sname
+                              else f"/users/{encoded}/servers/{sname}")
+                      req = urllib.request.Request(
+                          f"{HUB}{path}",
+                          headers={"Authorization": f"token {TOKEN}"},
+                          method="DELETE",
+                      )
+                      try:
+                          with urllib.request.urlopen(req) as r:
+                              r.read()
+                      except urllib.error.HTTPError as e:
+                          print(f"  WARN  Hub DELETE {path} → HTTP {e.code}", flush=True)
+                          return False
+
+                      # verify pod terminated — check every 5s for up to 30s
+                      for _ in range(6):
+                          time.sleep(5)
+                          if not pod_still_running(pod_name):
+                              print(f"  INFO  {uname} — pod terminated cleanly via Hub",
+                                    flush=True)
+                              return True
+
+                      # pod still running — orphan, fall back to direct k8s delete
+                      print(f"  WARN  Hub DELETE accepted but pod {pod_name} still running "
+                            f"(orphan) — falling back to direct k8s delete", flush=True)
+                      if k8s_delete_pod(pod_name):
+                          print(f"  INFO  {pod_name} deleted directly via k8s API", flush=True)
+                          return True
+                      else:
+                          print(f"  ERR   Failed to delete pod {pod_name}", flush=True)
+                          return False
+
                   def get_cpu_mc(pod_name):
                       data = k8s_req("GET",
                           f"/apis/metrics.k8s.io/v1beta1/namespaces/{NAMESPACE}/pods/{pod_name}",
@@ -116,6 +179,30 @@ spec:
                               total += int(cpu) * 1000
                       return round(total, 2)
 
+                  def get_all_jupyter_pods():
+                      data = k8s_req("GET",
+                          f"/api/v1/namespaces/{NAMESPACE}/pods"
+                          f"?labelSelector=app%3Djupyterhub%2Ccomponent%3Dsingleuser-server"
+                          f"&fieldSelector=status.phase%3DRunning",
+                      )
+                      if not data:
+                          return {}
+                      pods = {}
+                      for item in data.get("items", []):
+                          name     = item["metadata"]["name"]
+                          pod_ip   = item.get("status", {}).get("podIP", "")
+                          created  = item["metadata"].get("creationTimestamp", "")
+                          labels   = item["metadata"].get("labels", {})
+                          username = labels.get("hub.jupyter.org/username", "")
+                          server   = labels.get("hub.jupyter.org/servername", "")
+                          pods[name] = {
+                              "ip":       pod_ip,
+                              "created":  created,
+                              "username": username,
+                              "server":   server,
+                          }
+                      return pods
+
                   def load_history():
                       data = k8s_req("GET",
                           f"/api/v1/namespaces/{NAMESPACE}/configmaps/{CM_NAME}",
@@ -126,7 +213,6 @@ spec:
 
                   def save_history(history):
                       raw = {k: json.dumps(v) for k, v in history.items()}
-
                       patch_data = json.dumps({"data": raw}).encode()
                       patch_req = urllib.request.Request(
                           f"{K8S}/api/v1/namespaces/{NAMESPACE}/configmaps/{CM_NAME}",
@@ -145,7 +231,6 @@ spec:
                           if e.code != 404:
                               print(f"  WARN  patch configmap → HTTP {e.code}", flush=True)
                               return
-
                       create_data = json.dumps({
                           "apiVersion": "v1",
                           "kind": "ConfigMap",
@@ -168,82 +253,126 @@ spec:
                           print(f"  WARN  create configmap → HTTP {e.code}: "
                                 f"{e.read().decode()[:200]}", flush=True)
 
+                  def decode_username(encoded):
+                      name = encoded
+                      name = name.replace("-40", "@")
+                      name = name.replace("-2e", ".")
+                      name = name.replace("-2d", "-")
+                      name = name.replace("-5f", "_")
+                      name = name.replace("-20", " ")
+                      return name
+
+                  def parse_dt(s):
+                      if not s:
+                          return None
+                      return datetime.datetime.fromisoformat(
+                          s.replace("Z", "+00:00")
+                      ).replace(tzinfo=None)
+
+                  def idle_duration_str(samples, now):
+                      """Return how long since the last active sample, across all history."""
+                      last_active = max(
+                          (parse_dt(s["ts"]) for s in samples if s["active"]),
+                          default=None
+                      )
+                      if last_active:
+                          mins = int((now - last_active).total_seconds() / 60)
+                          hrs  = mins // 60
+                          rem  = mins % 60
+                          if hrs > 0:
+                              return f"{hrs}h{rem}m"
+                          return f"{mins}m"
+                      return "no active samples in history"
+
+                  # ── Main ─────────────────────────────────────────────────────
                   now = datetime.datetime.utcnow()
                   ts  = now.strftime("%Y-%m-%dT%H:%M:%SZ")
                   print(f"[{ts}]  dry_run={DRY_RUN}  threshold={THRESHOLD}  "
                         f"cpu_limit={CPU_LIMIT}mc  min_samples={MIN_SAMPLES}",
                         flush=True)
 
+                  check_hub_token()
+                  if not HUB_TOKEN_OK:
+                      print(f"  ACTION_REQUIRED  Update secret 'jhub-api-culler-token' in "
+                            f"namespace {NAMESPACE} with a valid Hub admin token.",
+                            flush=True)
+
                   history     = load_history()
-                  users       = hub("GET", "/users") or []
-                  culled, kept, errors = 0, 0, 0
+                  pods        = get_all_jupyter_pods()
                   active_keys = set()
+                  culled, kept, errors = 0, 0, 0
 
-                  for user in users:
-                      for sname, server in (user.get("servers") or {}).items():
-                          if not server.get("ready"):
-                              continue
+                  print(f"  Found {len(pods)} running jupyter pods", flush=True)
 
-                          uname    = user["name"]
-                          key      = f"{uname}__{sname or 'default'}".replace("@", "_at_")
-                          label    = f"{uname}/{sname or 'default'}"
-                          pod_name = server.get("state", {}).get("pod_name")
-                          active_keys.add(key)
+                  for pod_name, info in sorted(pods.items()):
+                      raw_uname = info["username"] or pod_name.replace("jupyter-", "", 1)
+                      uname     = decode_username(raw_uname)
+                      sname     = info["server"]
+                      label     = f"{uname}/{sname or 'default'}"
+                      key       = f"{uname}__{sname or 'default'}".replace("@", "_at_")
+                      active_keys.add(key)
 
-                          if not pod_name:
-                              print(f"  WARN  no pod_name for {label}", flush=True)
-                              continue
+                      cpu_mc = get_cpu_mc(pod_name)
+                      if cpu_mc is None:
+                          print(f"  WARN  no metrics for {label}, keeping safe", flush=True)
+                          kept += 1
+                          continue
 
-                          cpu_mc = get_cpu_mc(pod_name)
-                          if cpu_mc is None:
-                              print(f"  WARN  no metrics for {label}, keeping safe", flush=True)
-                              kept += 1
-                              continue
+                      active  = cpu_mc > CPU_LIMIT
+                      samples = history.get(key, [])
+                      samples.append({"ts": ts, "cpu_mc": cpu_mc, "active": active})
+                      samples = samples[-576:]
+                      history[key] = samples
 
-                          active  = cpu_mc > CPU_LIMIT
-                          samples = history.get(key, [])
-                          samples.append({"ts": ts, "cpu_mc": cpu_mc, "active": active})
-                          samples = samples[-288:]
-                          history[key] = samples
+                      print(f"  SAMPLE  {label}  pod={pod_name}  "
+                            f"cpu={cpu_mc}mc  active={active}", flush=True)
 
-                          print(f"  SAMPLE  {label}  cpu={cpu_mc}mc  active={active}", flush=True)
+                      cutoff = now - THRESHOLD
+                      window = [
+                          s for s in samples
+                          if parse_dt(s["ts"]) and parse_dt(s["ts"]) >= cutoff
+                      ]
 
-                          cutoff = now - THRESHOLD
-                          window = [
-                              s for s in samples
-                              if datetime.datetime.fromisoformat(
-                                  s["ts"].replace("Z", "+00:00")
-                              ).replace(tzinfo=None) >= cutoff
-                          ]
+                      if len(window) < MIN_SAMPLES:
+                          idle_str = idle_duration_str(samples, now)
+                          print(f"  KEEP  {label}  — not enough data yet "
+                                f"({len(window)}/{MIN_SAMPLES} samples, "
+                                f"idle {idle_str})", flush=True)
+                          kept += 1
+                          continue
 
-                          if len(window) < MIN_SAMPLES:
-                              print(f"  KEEP  {label}  — not enough data yet "
-                                    f"({len(window)}/{MIN_SAMPLES} samples)", flush=True)
-                              kept += 1
-                              continue
+                      if any(s["active"] for s in window):
+                          last_active_ts = max(
+                              parse_dt(s["ts"]) for s in window if s["active"]
+                          )
+                          idle_mins = int((now - last_active_ts).total_seconds() / 60)
+                          idle_hrs  = idle_mins // 60
+                          idle_rem  = idle_mins % 60
+                          idle_str  = f"{idle_hrs}h{idle_rem}m" if idle_hrs > 0 else f"{idle_mins}m"
+                          max_cpu   = max(s["cpu_mc"] for s in window)
+                          print(f"  KEEP  {label}  — CPU was active in last {THRESHOLD} "
+                                f"(last active {idle_str} ago, max {max_cpu}mc)", flush=True)
+                          kept += 1
+                          continue
 
-                          if any(s["active"] for s in window):
-                              max_cpu = max(s["cpu_mc"] for s in window)
-                              print(f"  KEEP  {label}  — CPU was active in last {THRESHOLD} "
-                                    f"(max {max_cpu}mc)", flush=True)
-                              kept += 1
-                              continue
-
-                          if DRY_RUN:
-                              print(f"  DRY   {label}  — would cull "
-                                    f"(no CPU activity in {THRESHOLD})", flush=True)
-                          else:
-                              encoded = quote(uname, safe='')
-                              path = (f"/users/{encoded}/server"
-                                      if not sname
-                                      else f"/users/{encoded}/servers/{sname}")
-                              hub("DELETE", path, expected=(200, 202, 204))
-                              print(f"  CULL  {label}  — no CPU activity in {THRESHOLD}",
-                                    flush=True)
+                      # all samples in window idle
+                      idle_str = idle_duration_str(samples, now)
+                      if DRY_RUN:
+                          print(f"  DRY   {label}  — would cull "
+                                f"(idle {idle_str})", flush=True)
+                      else:
+                          success = hub_delete_server(uname, sname, pod_name)
+                          if success:
+                              print(f"  CULL  {label}  — deleted "
+                                    f"(idle {idle_str})", flush=True)
                               culled += 1
+                          else:
+                              errors += 1
 
                   history = {k: v for k, v in history.items() if k in active_keys}
                   save_history(history)
 
-                  print(f"\nDone. culled={culled}  kept={kept}  errors={errors}", flush=True)
+                  print(f"\nDone. culled={culled}  kept={kept}  "
+                        f"total_pods={len(pods)}  errors={errors}  "
+                        f"hub_token_ok={HUB_TOKEN_OK}", flush=True)
                   sys.exit(1 if errors else 0)

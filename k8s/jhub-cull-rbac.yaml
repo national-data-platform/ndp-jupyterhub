@@ -2,13 +2,13 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: jhub-api-culler
-  namespace: ndp-test
+  namespace: ndp
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   name: jhub-api-culler-role
-  namespace: ndp-test
+  namespace: ndp
 rules:
   - apiGroups: ["metrics.k8s.io"]
     resources: ["pods"]
@@ -16,16 +16,19 @@ rules:
   - apiGroups: [""]
     resources: ["configmaps"]
     verbs: ["get", "list", "create", "update", "patch"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "delete"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
   name: jhub-api-culler-rolebinding
-  namespace: ndp-test
+  namespace: ndp
 subjects:
   - kind: ServiceAccount
     name: jhub-api-culler
-    namespace: ndp-test
+    namespace: ndp
 roleRef:
   kind: Role
   apiGroup: rbac.authorization.k8s.io
