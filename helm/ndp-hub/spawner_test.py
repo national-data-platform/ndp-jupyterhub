@@ -36,7 +36,7 @@ def use_k8s_secret(namespace, secret_name):
 NAMESPACE = 'ndp-test'
 CLIENT_ID, CLIENT_SECRET = use_k8s_secret(namespace=NAMESPACE, secret_name='jupyterhub-secret')
 KEYCLOAK_URL = "https://idp-test.nationaldataplatform.org"
-NDP_EXT_VERSION = '0.0.21+9c40157'
+NDP_EXT_VERSION = '0.0.23+37ebe57'
 
 USER_PERSISTENT_STORAGE_FOLDER = "_User-Persistent-Storage_CephBlock_"
 
