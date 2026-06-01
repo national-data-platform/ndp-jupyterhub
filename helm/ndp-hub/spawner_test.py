@@ -252,9 +252,15 @@ class MySpawner(KubeSpawner):
                       <option value="amd64" selected="selected">amd64</option>
                     </select>
 
-                    <b><i>Note:</b> Please stop your server after it is no longer needed, or in case you want to launch different content image
-                    <p style="color:green;">In order to stop the server from running Jupyter Lab, go to File > Hub Control Panel > Stop Server</i></p>
-                    <p><i><b>Note:</b> /home/jovyan/work/_User-Persistent-Storage_CephBlock_ is the persistent volume directory, make sure to save your work in it, otherwise it will be deleted</p>
+                    <div style="background-color: #f8f9fa; border-left: 4px solid #17a2b8; padding: 10px 15px; margin-top: 10px; border-radius: 3px;">
+                      <b>Notes:</b>
+                      <ul style="margin: 5px 0 0 0; padding-left: 20px;">
+                        <li>Please stop your server after it is no longer needed, or in case you want to launch a different content image. To stop the server, go to <b>File &gt; Hub Control Panel &gt; Stop Server</b>.</li>
+                        <li><code>/home/jovyan/work/_User-Persistent-Storage_CephBlock_</code> is the persistent volume directory — save your work there or it will be deleted.</li>
+                        <li>By starting a server, you agree to the <a href="https://nrp.ai/NRP-AUP.pdf" target="_blank">NRP Terms of Service</a>.</li>
+                      </ul>
+                    </div>
+                    
                     """
     
     async def options_from_form(self, formdata):
