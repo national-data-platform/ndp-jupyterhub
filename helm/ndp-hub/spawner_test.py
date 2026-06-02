@@ -639,6 +639,13 @@ async def pre_spawn_hook(spawner):
     api = client.CoreV1Api()
     spawner._profile_list = copy.deepcopy(original_profile_list)
 
+    # determine collab flag
+    group_names = {group.name for group in spawner.user.groups}
+    # collab_flag = "--LabApp.collaborative=True" if "collaborative" in group_names else ""
+    spawner.log.info(f"[RTC] User {spawner.user.name} is in groups: {group_names}")
+    if "collaborative" in group_names:
+        spawner.log.info(f"[RTC] Enabling RTC for user {spawner.user.name}")
+
     # pip install jupyterlab-launchpad
     git_creds_command0 = f"mkdir -p /home/jovyan/work/{USER_PERSISTENT_STORAGE_FOLDER}/.git"
     git_creds_command1 = f'git config --global credential.helper "store --file=/home/jovyan/work/{USER_PERSISTENT_STORAGE_FOLDER}/.git/.git-credentials"'
@@ -647,6 +654,7 @@ async def pre_spawn_hook(spawner):
     pip_install_command2 = ("pip install jupyterlab-git==0.50.1 --index-url https://gitlab.nrp-nautilus.io/api/v4/projects/3930/packages/pypi/simple --user")
     pip_install_command3 = (f"pip install ndp-jupyterlab-extension=={NDP_EXT_VERSION} --index-url https://gitlab.nrp-nautilus.io/api/v4/projects/3930/packages/pypi/simple --user")
     pip_install_command4 = ("pip install 'pexpect>=4.9' --user")
+    pip_install_collab = ("pip install jupyter-collaboration")
     pelican_exe_command = 'wget -O - "https://dl.pelicanplatform.org/latest/pelican_$(uname -s)_$(uname -m).tar.gz" | tar zx -C /home/jovyan/.local/bin/ --strip-components=1'
 
     # Modify the spawner's start command to include the pip install
@@ -661,6 +669,7 @@ async def pre_spawn_hook(spawner):
         f"&& {pip_install_command2} || true "
         f"&& {pip_install_command3} || true "
         f"&& {pip_install_command4} || true "
+        f"&& {pip_install_collab} || true "
         f"&& {pelican_exe_command} || true "
         f"&& cd /home/jovyan/work || true "
         f"&& exec {' '.join(original_cmd)}"
@@ -681,67 +690,69 @@ async def pre_spawn_hook(spawner):
     spawner.environment.update({'WORKSPACE_ID': workspace_id or ''})
     spawner.environment.update({'ENTITY_NAME': entity_name or ''})
 
-    PVCs = await get_user_pvcs(spawner.access_token)
-    if PVCs:
-        print(f"USER SHARED {PVCs}")
-        folder_names = []
-        init_containers = []
-        for pvc in PVCs:
-            if pvc['entity_id'] == entity_id:
-                try:
-                    folder_name = pvc['folder_name'].replace(" ", "-")
-                    id_short = pvc['subgroup_id'][:5]
-                    if folder_name in folder_names:
-                        folder_name = folder_name+claim_name[-5:]
-                    folder_names.append(folder_name)
-                    claim_name = pvc['claim_name']
-                    volume_name = pvc['volume_id']
-                except:
-                    pass
-                try:
-                    api.read_namespaced_persistent_volume_claim(name=claim_name, namespace=NAMESPACE)
-                except ApiException as e:
-                    print(e)
-                    if e.status == 404:
-                        print(f"Creating PVC {claim_name}")
-                        pvc_manifest = {
-                                'apiVersion': 'v1',
-                                'kind': 'PersistentVolumeClaim',
-                                'metadata': {'name': claim_name, 'namespace': NAMESPACE},
-                                'spec': {
-                                    'accessModes': ['ReadWriteMany'],
-                                    'resources': {'requests': {'storage': '5Gi'}},
-                                    'storageClassName': 'rook-cephfs-central'
+    if username[-6:] != "collab":
+        PVCs = await get_user_pvcs(spawner.access_token)
+        if PVCs:
+            print(f"USER SHARED {PVCs}")
+            folder_names = []
+            init_containers = []
+            for pvc in PVCs:
+                if pvc['entity_id'] == entity_id:
+                    try:
+                        folder_name = pvc['folder_name'].replace(" ", "-")
+                        id_short = pvc['subgroup_id'][:5]
+                        if folder_name in folder_names:
+                            folder_name = folder_name+claim_name[-5:]
+                        folder_names.append(folder_name)
+                        claim_name = pvc['claim_name']
+                        volume_name = pvc['volume_id']
+                    except:
+                        pass
+                    try:
+                        api.read_namespaced_persistent_volume_claim(name=claim_name, namespace=NAMESPACE)
+                    except ApiException as e:
+                        print(e)
+                        if e.status == 404:
+                            print(f"Creating PVC {claim_name}")
+                            pvc_manifest = {
+                                    'apiVersion': 'v1',
+                                    'kind': 'PersistentVolumeClaim',
+                                    'metadata': {'name': claim_name, 'namespace': NAMESPACE},
+                                    'spec': {
+                                        'accessModes': ['ReadWriteMany'],
+                                        'resources': {'requests': {'storage': '5Gi'}},
+                                        'storageClassName': 'rook-cephfs-central'
+                                    }
                                 }
-                            }
-                        api.create_namespaced_persistent_volume_claim(namespace=NAMESPACE, body=pvc_manifest)
-                        print(f"PVC {claim_name} created successfully.")
-                    else:
-                        print(f"Error creating PVC {claim_name}: {e}!!!!!!")
-                        raise
-                logging.info(f"Adding volume and mount for group {folder_name}")
-                init_containers.append({
-                        'name': f'set-permissions-{id_short}',
-                        'image': 'alpine',
-                        'command': ['sh', '-c', f'chmod -R 0777 /shared-storage/{folder_name}'],
-                        'volumeMounts': [{
+                            api.create_namespaced_persistent_volume_claim(namespace=NAMESPACE, body=pvc_manifest)
+                            print(f"PVC {claim_name} created successfully.")
+                        else:
+                            print(f"Error creating PVC {claim_name}: {e}!!!!!!")
+                            raise
+                    logging.info(f"Adding volume and mount for group {folder_name}")
+                    init_containers.append({
+                            'name': f'set-permissions-{id_short}',
+                            'image': 'alpine',
+                            'command': ['sh', '-c', f'chmod -R 0777 /shared-storage/{folder_name}'],
+                            'volumeMounts': [{
+                                'name': volume_name,
+                                'mountPath': f'/shared-storage/{folder_name}'
+                            }]
+                        })
+                    spawner.extra_volume_mounts.append({
                             'name': volume_name,
-                            'mountPath': f'/shared-storage/{folder_name}'
-                        }]
-                    })
-                spawner.extra_volume_mounts.append({
-                        'name': volume_name,
-                        'mountPath': f'/home/jovyan/work/{folder_name}/'
-                    })
-                spawner.extra_volumes.append({
-                        'name': volume_name,
-                        'persistentVolumeClaim': {'claimName': claim_name}
-                    })
-                
-            await update_pvc(spawner.access_token, pvc['pvc_id'])
-        spawner.extra_pod_config = spawner.extra_pod_config or {}
-        spawner.extra_pod_config.setdefault('initContainers', []).extend(init_containers)
+                            'mountPath': f'/home/jovyan/work/{folder_name}/'
+                        })
+                    spawner.extra_volumes.append({
+                            'name': volume_name,
+                            'persistentVolumeClaim': {'claimName': claim_name}
+                        })
+                    
+                await update_pvc(spawner.access_token, pvc['pvc_id'])
+            spawner.extra_pod_config = spawner.extra_pod_config or {}
+            spawner.extra_pod_config.setdefault('initContainers', []).extend(init_containers)
 
+# c.LabServerApp.collaborative = True
 c.JupyterHub.template_paths = ['/etc/jupyterhub/custom']
 c.JupyterHub.spawner_class = MySpawner
 c.JupyterHub.allow_named_servers = False
@@ -753,6 +764,21 @@ c.JupyterHub.services.append(
         "api_token": os.environ["JUPYTERHUB_METRICS_API_KEY"]
     }
 )
+
+project_config = {
+    "projects": {
+        "vox": {
+            "id": ":p",
+            "members": ["sstrivedi@ucsd.edu", "i3perez@ucsd.edu"]
+        },
+        "test_rtc": {
+            "id": "7d7018a1-402a-4fbd-b189-f58f7d6dbc2d",
+            "members": ["sstrivedi@ucsd.edu", "pramonettivega@ucsd.edu"]
+        },
+    }
+}
+
+
 # Append a service role to scrape prometheus metrics
 c.JupyterHub.load_roles.append(
     {
@@ -766,6 +792,40 @@ c.JupyterHub.load_roles.append(
         ],
     }
 )
+
+c.JupyterHub.load_groups = {
+    # collaborative accounts get added to this group
+    # so it's easy to see which accounts are collaboration accounts
+    "collaborative": [],
+}
+
+for project_name, project in project_config["projects"].items():
+    # get the members of the project
+    members = project.get("members", [])
+    print(f"Adding project {project_name} with members {members}")
+    # add them to a group for the project
+    c.JupyterHub.load_groups[project_name] = members
+    # define a new user for the collaboration
+    collab_user = f"{project_name}-collab"
+    # add the collab user to the 'collaborative' group
+    # so we can identify it as a collab account
+    c.JupyterHub.load_groups["collaborative"].append(collab_user)
+
+    # finally, grant members of the project collaboration group
+    # access to the collab user's server,
+    # and the admin UI so they can start/stop the server
+    c.JupyterHub.load_roles.append(
+        {
+            "name": f"collab-access-{project_name}",
+            "scopes": [
+                f"access:servers!user={collab_user}",
+                f"admin:servers!user={collab_user}",
+                "admin-ui",
+                f"list:users!user={collab_user}",
+            ],
+            "groups": [project_name],
+        }
+    )
 
 # check only once per day not to block single-user
 c.MyAuthenticator.auth_refresh_age = 86300
