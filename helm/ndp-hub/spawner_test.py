@@ -440,6 +440,26 @@ class MySpawner(KubeSpawner):
         return options
 
     async def options_form(self, spawner):
+        # Collab users have no auth state of their own — use the requesting user's token
+        if spawner.user.name.endswith('-collab'):
+            entities = []
+            if spawner.handler:
+                requesting_user = spawner.handler.current_user
+                if requesting_user:
+                    requesting_auth_state = await requesting_user.get_auth_state()
+                    if requesting_auth_state and requesting_auth_state.get('access_token'):
+                        try:
+                            entities = await get_user_entities(requesting_auth_state['access_token'])
+                        except Exception as e:
+                            print(f"Error fetching entities for collab spawn: {e}")
+            self.entity_list = entities
+            template = Template(self.profile_form_template)
+            return template.render(
+                profile_list=self.profile_list,
+                entity_list=entities,
+                preselected_entity=None,
+            )
+
         try:
             entities = await get_user_entities(spawner.access_token)
         except Exception as e:
@@ -544,6 +564,8 @@ class MyAuthenticator(GenericOAuthenticator):
 
 # pass access_token and refresh_token for communicating with NDP APIs
 def auth_state_hook(spawner, auth_state):
+    if not auth_state:
+        return
     spawner.access_token = auth_state['access_token']
     spawner.refresh_token = auth_state['refresh_token']
     spawner.environment.update({'ACCESS_TOKEN': spawner.access_token})
@@ -654,7 +676,7 @@ async def pre_spawn_hook(spawner):
     pip_install_command2 = ("pip install jupyterlab-git==0.50.1 --index-url https://gitlab.nrp-nautilus.io/api/v4/projects/3930/packages/pypi/simple --user")
     pip_install_command3 = (f"pip install ndp-jupyterlab-extension=={NDP_EXT_VERSION} --index-url https://gitlab.nrp-nautilus.io/api/v4/projects/3930/packages/pypi/simple --user")
     pip_install_command4 = ("pip install 'pexpect>=4.9' --user")
-    pip_install_collab = ("pip install jupyter-collaboration")
+    pip_install_collab = ('pip install "jupyter-collaboration<3"')
     pelican_exe_command = 'wget -O - "https://dl.pelicanplatform.org/latest/pelican_$(uname -s)_$(uname -m).tar.gz" | tar zx -C /home/jovyan/.local/bin/ --strip-components=1'
 
     # Modify the spawner's start command to include the pip install
@@ -681,9 +703,9 @@ async def pre_spawn_hook(spawner):
     spawner.environment.update({"WORKSPACE_API_URL": WORKSPACE_API_URL})
     spawner.environment.update({"REFRESH_EVERY_SECONDS": str(REFRESH_EVERY_SECONDS)})
 
-    entity_id = spawner.entity_id
-    workspace_id = spawner.workspace_id
-    entity_name = spawner.entity_name
+    entity_id = getattr(spawner, 'entity_id', '')
+    workspace_id = getattr(spawner, 'workspace_id', '')
+    entity_name = getattr(spawner, 'entity_name', '')
     
     print(f"Workspace ID: {workspace_id}, Entity ID: {entity_id}, Entity Name: {entity_name}")
     spawner.environment.update({'ENTITY_ID': entity_id or ''})
