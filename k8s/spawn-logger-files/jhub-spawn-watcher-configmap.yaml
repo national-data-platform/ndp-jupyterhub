@@ -1,0 +1,224 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: jhub-spawn-watcher-script
+  namespace: ndp
+  labels:
+    app: jhub-spawn-watcher
+data:
+  watcher.sh: |
+    #!/bin/bash
+    NAMESPACE="${NAMESPACE:-ndp}"
+    echo "[watcher] Started - watching namespace=${NAMESPACE}"
+
+    while true; do
+      echo "[watcher] Connecting to watch stream..."
+      kubectl get pods -n "${NAMESPACE}" \
+        -l "app=jupyterhub,component=singleuser-server" \
+        --watch \
+        --output-watch-events \
+        -o json \
+      | python3 -u /scripts/dispatch.py
+      echo "[watcher] Watch stream ended - reconnecting in 5s..."
+      sleep 5
+    done
+
+  dispatch.py: |
+    import sys, json, subprocess, os
+    for line in sys.stdin:
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if event.get("type") != "ADDED":
+            continue
+        pod  = event["object"]
+        name = pod["metadata"]["name"]
+        user = pod["metadata"].get("labels", {}).get("hub.jupyter.org/username", "unknown")
+        print(f"[watcher] New pod - user={user} pod={name}", flush=True)
+        subprocess.Popen(
+            ["/bin/bash", "/scripts/handle_pod.sh", name, user],
+            env=os.environ.copy()
+        )
+
+  handle_pod.sh: |
+    #!/bin/bash
+    set -euo pipefail
+
+    POD_NAME="$1"
+    USERNAME="$2"
+    NAMESPACE="${NAMESPACE:-ndp}"
+    SPAWN_TIMEOUT="${SPAWN_TIMEOUT:-300}"
+    LOG_DIR="/logs"
+    STARTED_AT=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+    START_EPOCH=$(date +%s)
+    TMP_LOG="/tmp/pod_${POD_NAME}.log"
+
+    NODE_NAME=""; SPAWN_DURATION="null"
+    CPU_REQUEST=""; CPU_LIMIT=""; MEMORY_REQUEST=""; MEMORY_LIMIT=""
+    GPU_REQUEST=""; GPU_TYPE=""
+    PVC_DETAILS_JSON="[]"; POD_EVENTS_JSON="[]"
+
+    write_log() {
+      local status="$1"
+      local failure_reason="${2:-}"
+      local log_file="${LOG_DIR}/$(date -u +"%Y-%m-%d").json"
+      local pod_log_tail=""
+      [[ -f "${TMP_LOG}" ]] && pod_log_tail=$(cat "${TMP_LOG}")
+      python3 /scripts/write_log.py \
+        "${log_file}" \
+        "${STARTED_AT}" "${USERNAME}" "${POD_NAME}" "${NODE_NAME}" \
+        "${status}" "${failure_reason}" "${SPAWN_DURATION}" \
+        "${CPU_REQUEST}" "${CPU_LIMIT}" \
+        "${MEMORY_REQUEST}" "${MEMORY_LIMIT}" \
+        "${GPU_REQUEST}" "${GPU_TYPE}" \
+        "${PVC_DETAILS_JSON}" "${POD_EVENTS_JSON}" \
+        "${pod_log_tail}"
+      echo "[handle_pod] Logged to ${log_file} - user=${USERNAME} status=${status}"
+      rm -f "${TMP_LOG}"
+    }
+
+    while true; do
+      PHASE=$(kubectl get pod "${POD_NAME}" -n "${NAMESPACE}" \
+        -o jsonpath='{.status.phase}' 2>/dev/null || echo "Unknown")
+      READY=$(kubectl get pod "${POD_NAME}" -n "${NAMESPACE}" \
+        -o jsonpath='{.status.containerStatuses[0].ready}' 2>/dev/null || echo "false")
+
+      if [[ "${PHASE}" == "Running" && "${READY}" == "true" ]]; then
+        SPAWN_DURATION=$(( $(date +%s) - START_EPOCH ))
+        echo "[handle_pod] Pod ready - user=${USERNAME} duration=${SPAWN_DURATION}s"
+        break
+      fi
+
+      if [[ "${PHASE}" == "Failed" || "${PHASE}" == "Unknown" ]]; then
+        echo "[handle_pod] Pod failed - user=${USERNAME} phase=${PHASE}"
+        POD_EVENTS_JSON=$(kubectl get events -n "${NAMESPACE}" \
+          --field-selector "involvedObject.name=${POD_NAME}" \
+          -o json 2>/dev/null | python3 /scripts/parse_events.py || echo "[]")
+        kubectl logs "${POD_NAME}" -n "${NAMESPACE}" --tail=200 \
+          > "${TMP_LOG}" 2>/dev/null || echo "(unavailable)" > "${TMP_LOG}"
+        write_log "failed" "Pod phase=${PHASE}"
+        exit 0
+      fi
+
+      ELAPSED=$(( $(date +%s) - START_EPOCH ))
+      if (( ELAPSED >= SPAWN_TIMEOUT )); then
+        echo "[handle_pod] Timeout - user=${USERNAME} pod stuck in phase=${PHASE}"
+        echo "(unavailable)" > "${TMP_LOG}"
+        write_log "timeout" "Pod stuck in phase=${PHASE} after ${SPAWN_TIMEOUT}s"
+        exit 0
+      fi
+
+      sleep 5
+    done
+
+    NODE_NAME=$(kubectl get pod "${POD_NAME}" -n "${NAMESPACE}" \
+      -o jsonpath='{.spec.nodeName}' 2>/dev/null || true)
+    CPU_REQUEST=$(kubectl get pod "${POD_NAME}" -n "${NAMESPACE}" \
+      -o jsonpath='{.spec.containers[0].resources.requests.cpu}' 2>/dev/null || true)
+    CPU_LIMIT=$(kubectl get pod "${POD_NAME}" -n "${NAMESPACE}" \
+      -o jsonpath='{.spec.containers[0].resources.limits.cpu}' 2>/dev/null || true)
+    MEMORY_REQUEST=$(kubectl get pod "${POD_NAME}" -n "${NAMESPACE}" \
+      -o jsonpath='{.spec.containers[0].resources.requests.memory}' 2>/dev/null || true)
+    MEMORY_LIMIT=$(kubectl get pod "${POD_NAME}" -n "${NAMESPACE}" \
+      -o jsonpath='{.spec.containers[0].resources.limits.memory}' 2>/dev/null || true)
+
+    for GPU_KEY in "nvidia.com~1gpu" "amd.com~1gpu"; do
+      VAL=$(kubectl get pod "${POD_NAME}" -n "${NAMESPACE}" \
+        -o jsonpath="{.spec.containers[0].resources.requests.${GPU_KEY}}" \
+        2>/dev/null || true)
+      if [[ -n "${VAL}" ]]; then
+        GPU_REQUEST="${VAL}"
+        GPU_TYPE="${GPU_KEY//\~1//}"
+        break
+      fi
+    done
+
+    PVC_DETAILS_JSON=$(kubectl get pod "${POD_NAME}" -n "${NAMESPACE}" \
+      -o json 2>/dev/null | python3 /scripts/parse_pvcs.py || echo "[]")
+
+    POD_EVENTS_JSON=$(kubectl get events -n "${NAMESPACE}" \
+      --field-selector "involvedObject.name=${POD_NAME}" \
+      -o json 2>/dev/null | python3 /scripts/parse_events.py || echo "[]")
+
+    kubectl logs "${POD_NAME}" -n "${NAMESPACE}" --tail=200 \
+      > "${TMP_LOG}" 2>/dev/null || echo "(unavailable)" > "${TMP_LOG}"
+
+    write_log "success"
+
+  parse_events.py: |
+    import json, sys
+    data = json.load(sys.stdin)
+    events = [
+        {
+            "reason":  e.get("reason", ""),
+            "message": e.get("message", ""),
+            "type":    e.get("type", ""),
+            "count":   e.get("count", 1),
+        }
+        for e in data.get("items", [])
+    ]
+    print(json.dumps(events))
+
+  parse_pvcs.py: |
+    import json, sys, subprocess
+    pod = json.load(sys.stdin)
+    namespace = pod["metadata"]["namespace"]
+    pvcs = []
+    for vol in pod.get("spec", {}).get("volumes", []):
+        claim = vol.get("persistentVolumeClaim", {}).get("claimName")
+        if not claim:
+            continue
+        r = subprocess.run(
+            ["kubectl", "get", "pvc", claim, "-n", namespace,
+             "-o", "jsonpath={.spec.resources.requests.storage}"],
+            capture_output=True, text=True
+        )
+        pvcs.append({"name": vol["name"], "claim_name": claim, "size": r.stdout.strip()})
+    print(json.dumps(pvcs))
+
+  write_log.py: |
+    import json, sys
+    (
+        log_file,
+        started_at, username, pod_name, node_name,
+        status, failure_reason, spawn_duration,
+        cpu_request, cpu_limit, memory_request, memory_limit,
+        gpu_request, gpu_type,
+        pvc_details_json, pod_events_json,
+        pod_log_tail
+    ) = sys.argv[1:]
+
+    entry = {
+        "started_at":          started_at,
+        "username":            username,
+        "pod_name":            pod_name,
+        "node_name":           node_name,
+        "status":              status,
+        "failure_reason":      failure_reason,
+        "spawn_duration_secs": None if spawn_duration == "null" else int(spawn_duration),
+        "cpu_request":         cpu_request,
+        "cpu_limit":           cpu_limit,
+        "memory_request":      memory_request,
+        "memory_limit":        memory_limit,
+        "gpu_request":         gpu_request,
+        "gpu_type":            gpu_type,
+        "pvc_details":         json.loads(pvc_details_json),
+        "pod_events":          json.loads(pod_events_json),
+        "pod_log_tail":        pod_log_tail,
+    }
+
+    try:
+        with open(log_file) as f:
+            data = json.load(f)
+    except Exception:
+        data = []
+
+    data.append(entry)
+
+    with open(log_file, "w") as f:
+        json.dump(data, f, indent=2)

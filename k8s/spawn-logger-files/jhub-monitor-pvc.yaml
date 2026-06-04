@@ -1,0 +1,15 @@
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: jhub-monitor-logs
+  namespace: ndp
+  labels:
+    app: jhub-spawn-monitor
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 5Gi
+  storageClassName: rook-cephfs-central
