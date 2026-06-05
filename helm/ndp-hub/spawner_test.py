@@ -450,6 +450,8 @@ class MySpawner(KubeSpawner):
                     if requesting_auth_state and requesting_auth_state.get('access_token'):
                         try:
                             entities = await get_user_entities(requesting_auth_state['access_token'])
+                            self._collab_access_token = requesting_auth_state['access_token']
+                            self._collab_refresh_token = requesting_auth_state.get('refresh_token', '')
                         except Exception as e:
                             print(f"Error fetching entities for collab spawn: {e}")
             self.entity_list = entities
@@ -712,7 +714,13 @@ async def pre_spawn_hook(spawner):
     spawner.environment.update({'WORKSPACE_ID': workspace_id or ''})
     spawner.environment.update({'ENTITY_NAME': entity_name or ''})
 
-    if username[-6:] != "collab":
+    if username[-6:] == "collab":
+        access_token = getattr(spawner, '_collab_access_token', '')
+        refresh_token = getattr(spawner, '_collab_refresh_token', '')
+        if access_token:
+            spawner.environment.update({'ACCESS_TOKEN': access_token})
+            spawner.environment.update({'REFRESH_TOKEN': refresh_token})
+    else:
         PVCs = await get_user_pvcs(spawner.access_token)
         if PVCs:
             print(f"USER SHARED {PVCs}")
