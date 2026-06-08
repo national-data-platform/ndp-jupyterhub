@@ -188,6 +188,9 @@ class MySpawner(KubeSpawner):
                     <label for="ram">RAM, GB</label>
                     <input class="form-control input" type="number" name="ram" value="16" min="1" max="256"/>
                     <br/>
+                    <label for="scratch">Extra scratch disk, GB</label>
+                    <input class="form-control input" type="number" name="scratch" value="0" min="0" max="2000"/>
+                    <br/>
                     <label for="gputype">GPU type</label>
                     <select class="form-control input" name="gputype">
                       <option value="" selected="selected">Any</option>
@@ -429,6 +432,18 @@ class MySpawner(KubeSpawner):
                     'claimName': 'jupyterlab-cephfs-' + cephfs_pvc_users[self.user.name]
                 }
             })
+
+        scratch_gb = int(formdata.get('scratch', [0])[0])
+        if scratch_gb > 0:
+            self.volume_mounts.append({
+                'name': 'scratch',
+                'mountPath': '/scratch',
+            })
+            self.volumes.append({
+                'name': 'scratch',
+                'emptyDir': {'sizeLimit': f'{scratch_gb}Gi'}
+            })
+
         self.extra_volumes = self.volumes
         self.extra_volume_mounts = self.volume_mounts
 
