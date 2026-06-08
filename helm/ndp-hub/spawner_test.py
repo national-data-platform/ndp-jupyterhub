@@ -188,7 +188,7 @@ class MySpawner(KubeSpawner):
                     <label for="ram">RAM, GB</label>
                     <input class="form-control input" type="number" name="ram" value="16" min="1" max="256"/>
                     <br/>
-                    <label for="scratch">Extra scratch disk, GB</label>
+                    <label for="scratch">Extra scratch space, GB</label>
                     <input class="form-control input" type="number" name="scratch" value="0" min="0" max="2000"/>
                     <br/>
                     <label for="gputype">GPU type</label>
@@ -443,6 +443,8 @@ class MySpawner(KubeSpawner):
                 'name': 'scratch',
                 'emptyDir': {'sizeLimit': f'{scratch_gb}Gi'}
             })
+            self.extra_resource_limits["ephemeral-storage"] = f"{scratch_gb}Gi"
+            self.extra_resource_guarantees["ephemeral-storage"] = f"{scratch_gb}Gi"
 
         self.extra_volumes = self.volumes
         self.extra_volume_mounts = self.volume_mounts
