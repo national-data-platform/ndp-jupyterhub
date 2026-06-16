@@ -25,25 +25,51 @@ data:
     done
 
   dispatch.py: |
-    import sys, json, subprocess, os
-    for line in sys.stdin:
-        line = line.strip()
-        if not line:
-            continue
+    import json, subprocess, os, time, sys
+
+    NAMESPACE = os.environ.get("NAMESPACE", "ndp")
+    # Tracks pod names already handled — persists across stream reconnects
+    seen = set()
+
+    while True:
+        print("[watcher] Connecting to watch stream...", flush=True)
         try:
-            event = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        if event.get("type") != "ADDED":
-            continue
-        pod  = event["object"]
-        name = pod["metadata"]["name"]
-        user = pod["metadata"].get("labels", {}).get("hub.jupyter.org/username", "unknown")
-        print(f"[watcher] New pod - user={user} pod={name}", flush=True)
-        subprocess.Popen(
-            ["/bin/bash", "/scripts/handle_pod.sh", name, user],
-            env=os.environ.copy()
-        )
+            proc = subprocess.Popen(
+                ["kubectl", "get", "pods", "-n", NAMESPACE,
+                 "-l", "app=jupyterhub,component=singleuser-server",
+                 "--watch", "--output-watch-events", "-o", "json"],
+                stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True
+            )
+            for line in proc.stdout:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    event = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if event.get("type") != "ADDED":
+                    continue
+                pod  = event["object"]
+                name = pod["metadata"]["name"]
+                user = pod["metadata"].get("labels", {}).get("hub.jupyter.org/username", "unknown")
+                # Key on name + creation timestamp so a user relaunching
+                # their pod (same name, new timestamp) is correctly captured
+                created = pod["metadata"].get("creationTimestamp", "")
+                key = f"{name}/{created}"
+                if key in seen:
+                    continue
+                seen.add(key)
+                print(f"[watcher] New pod - user={user} pod={name}", flush=True)
+                subprocess.Popen(
+                    ["/bin/bash", "/scripts/handle_pod.sh", name, user],
+                    env=os.environ.copy()
+                )
+            proc.wait()
+        except Exception as e:
+            print(f"[watcher] Error: {e}", flush=True)
+        print("[watcher] Watch stream ended - reconnecting in 5s...", flush=True)
+        time.sleep(5)
 
   handle_pod.sh: |
     #!/bin/bash
