@@ -11,18 +11,7 @@ data:
     #!/bin/bash
     NAMESPACE="${NAMESPACE:-ndp}"
     echo "[watcher] Started - watching namespace=${NAMESPACE}"
-
-    while true; do
-      echo "[watcher] Connecting to watch stream..."
-      kubectl get pods -n "${NAMESPACE}" \
-        -l "app=jupyterhub,component=singleuser-server" \
-        --watch \
-        --output-watch-events \
-        -o json \
-      | python3 -u /scripts/dispatch.py
-      echo "[watcher] Watch stream ended - reconnecting in 5s..."
-      sleep 5
-    done
+    exec python3 -u /scripts/dispatch.py
 
   dispatch.py: |
     import json, subprocess, os, time, sys
@@ -114,6 +103,12 @@ data:
       READY=$(kubectl get pod "${POD_NAME}" -n "${NAMESPACE}" \
         -o jsonpath='{.status.containerStatuses[0].ready}' 2>/dev/null || echo "false")
 
+      # Collect events on every iteration so we always have the latest
+      # snapshot — critical for failures during ContainerCreating/Pending
+      POD_EVENTS_JSON=$(kubectl get events -n "${NAMESPACE}" \
+        --field-selector "involvedObject.name=${POD_NAME}" \
+        -o json 2>/dev/null | python3 /scripts/parse_events.py || echo "[]")
+
       if [[ "${PHASE}" == "Running" && "${READY}" == "true" ]]; then
         SPAWN_DURATION=$(( $(date +%s) - START_EPOCH ))
         echo "[handle_pod] Pod ready - user=${USERNAME} duration=${SPAWN_DURATION}s"
@@ -122,9 +117,6 @@ data:
 
       if [[ "${PHASE}" == "Failed" || "${PHASE}" == "Unknown" ]]; then
         echo "[handle_pod] Pod failed - user=${USERNAME} phase=${PHASE}"
-        POD_EVENTS_JSON=$(kubectl get events -n "${NAMESPACE}" \
-          --field-selector "involvedObject.name=${POD_NAME}" \
-          -o json 2>/dev/null | python3 /scripts/parse_events.py || echo "[]")
         kubectl logs "${POD_NAME}" -n "${NAMESPACE}" --tail=200 \
           > "${TMP_LOG}" 2>/dev/null || echo "(unavailable)" > "${TMP_LOG}"
         write_log "failed" "Pod phase=${PHASE}"
@@ -134,12 +126,13 @@ data:
       ELAPSED=$(( $(date +%s) - START_EPOCH ))
       if (( ELAPSED >= SPAWN_TIMEOUT )); then
         echo "[handle_pod] Timeout - user=${USERNAME} pod stuck in phase=${PHASE}"
-        echo "(unavailable)" > "${TMP_LOG}"
+        kubectl logs "${POD_NAME}" -n "${NAMESPACE}" --tail=200 \
+          > "${TMP_LOG}" 2>/dev/null || echo "(unavailable)" > "${TMP_LOG}"
         write_log "timeout" "Pod stuck in phase=${PHASE} after ${SPAWN_TIMEOUT}s"
         exit 0
       fi
 
-      sleep 5
+      sleep 15
     done
 
     NODE_NAME=$(kubectl get pod "${POD_NAME}" -n "${NAMESPACE}" \
