@@ -264,6 +264,29 @@ class MySpawner(KubeSpawner):
                     """
     
     async def options_from_form(self, formdata):
+        # If the user just accepted TOS, record it and spawn with defaults.
+        # They can stop the server and re-spawn to choose a different image or resources.
+        if formdata.get('tos_agreed', [''])[0] == 'yes':
+            try:
+                conn = http.client.HTTPSConnection("ndp-test.sdsc.edu")
+                payload = json.dumps({
+                    "username": self.user.name,
+                    "timestamp": datetime.utcnow().isoformat()
+                })
+                conn.request(
+                    "POST", "/workspaces-api/tos/accept", body=payload,
+                    headers={
+                        'Authorization': f'Bearer {self.access_token}',
+                        'Content-Type': 'application/json'
+                    }
+                )
+                conn.getresponse()
+                print(f"TOS accepted and recorded for {self.user.name}")
+            except Exception as e:
+                print(f"TOS acceptance record failed for {self.user.name}: {e}")
+            # Strip tos_agreed so it doesn't interfere with normal spawn processing
+            formdata = {k: v for k, v in formdata.items() if k != 'tos_agreed'}
+
         # print(f'1. self._profile_list: {self._profile_list}')
         cephfs_pvc_users = {}
 
@@ -446,6 +469,24 @@ class MySpawner(KubeSpawner):
         return options
 
     async def options_form(self, spawner):
+        # Check TOS acceptance before showing spawn options.
+        # Set tos_accepted = False to test the TOS UI before the API is deployed.
+        tos_accepted = False  # fail open if API is unavailable or not yet deployed
+        try:
+            conn = http.client.HTTPSConnection("ndp-test.sdsc.edu")
+            conn.request(
+                "GET",
+                f"/workspaces-api/tos/accepted?username={spawner.user.name}",
+                headers={'Authorization': f'Bearer {spawner.access_token}'}
+            )
+            resp = conn.getresponse()
+            if resp.status == 200:
+                tos_accepted = json.loads(resp.read().decode()).get("accepted", False)
+            else:
+                print(f"TOS check returned status {resp.status}, failing open")
+        except Exception as e:
+            print(f"TOS check failed: {e}")
+
         try:
             entities = await get_user_entities(spawner.access_token)
         except Exception as e:
@@ -469,7 +510,64 @@ class MySpawner(KubeSpawner):
             entity_list=entities,
             preselected_entity=source,
         )
-        return rendered_form
+
+        if tos_accepted:
+            return rendered_form
+
+        # TOS not yet accepted: show TOS section first, spawn options hidden below.
+        # Checking the checkbox hides the TOS, reveals spawn options, and enables Start.
+        return f"""
+            <div id="tos-section" style="background:#f8f9fa; padding:20px; border-radius:4px; margin-bottom:20px;">
+                <h4>National Research Platform &mdash; Terms of Service</h4>
+                <p>Before using NDP JupyterHub, please read and accept the NRP Terms of Service.</p>
+                <iframe src="https://nrp.ai/NRP-AUP.pdf" width="100%" height="400px"
+                        style="border:1px solid #ccc; border-radius:4px;"></iframe>
+                <br/><br/>
+                <div style="display:flex; align-items:center; gap:10px; margin-top:12px;">
+                    <input type="checkbox" id="tos_agreed" name="tos_agreed" value="yes"
+                           style="width:18px; height:18px;">
+                    <label for="tos_agreed" style="margin:0;">
+                        I have read and agree to the
+                        <a href="https://nrp.ai/NRP-AUP.pdf" target="_blank">NRP Terms of Service</a>
+                    </label>
+                </div>
+            </div>
+            <div id="spawn-options-wrapper" style="display:none;">
+                {rendered_form}
+            </div>
+            <script>
+            document.addEventListener('DOMContentLoaded', function() {{
+                var startBtn = document.querySelector('.feedback-container button[type="submit"]');
+                var tosCheckbox = document.getElementById('tos_agreed');
+                var tosSection = document.getElementById('tos-section');
+                var spawnOptions = document.getElementById('spawn-options-wrapper');
+
+                if (startBtn) {{
+                    startBtn.disabled = true;
+                    startBtn.style.opacity = '0.5';
+                    startBtn.style.cursor = 'not-allowed';
+                }}
+
+                tosCheckbox.addEventListener('change', function() {{
+                    if (this.checked) {{
+                        spawnOptions.style.display = '';
+                        if (startBtn) {{
+                            startBtn.disabled = false;
+                            startBtn.style.opacity = '';
+                            startBtn.style.cursor = '';
+                        }}
+                    }} else {{
+                        spawnOptions.style.display = 'none';
+                        if (startBtn) {{
+                            startBtn.disabled = true;
+                            startBtn.style.opacity = '0.5';
+                            startBtn.style.cursor = 'not-allowed';
+                        }}
+                    }}
+                }});
+            }});
+            </script>
+        """
 
 
 
