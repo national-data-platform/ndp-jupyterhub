@@ -11,11 +11,21 @@ jupyterhub:
       name: gitlab-registry.nrp-nautilus.io/ndp/ndp-docker-images/jh
       tag: "2.0.11"
     extraEnv:
-      JUPYTERHUB_METRICS_API_KEY: 
+      JUPYTERHUB_METRICS_API_KEY:
         valueFrom:
           secretKeyRef:
             name: jupyterhub-metrics-secret
             key: metrics-api-key
+      JUPYTERHUB_GROUP_SYNC_TOKEN:
+        valueFrom:
+          secretKeyRef:
+            name: group-sync-secret
+            key: jupyterhub-api-token
+      JUPYTERHUB_DB_PASS:
+        valueFrom:
+          secretKeyRef:
+            name: postgres-secret
+            key: password
     existingSecret: jupyterhub-secret
     config:
       GenericOAuthenticator:
@@ -46,14 +56,10 @@ jupyterhub:
         nodePort:
       loadBalancerIP:
     deploymentStrategy:
-      type: Recreate
+      type: RollingUpdate
     db:
-      type: sqlite-pvc
-      pvc:
-        accessModes:
-          - ReadWriteOnce
-        storage: 10Gi
-        storageClassName: rook-ceph-block
+      type: postgres
+      url: "postgresql+psycopg2://jupyterhub:placeholder@postgres:5432/jupyterhub"
     resources:
       limits:
         cpu: "2"

@@ -15,7 +15,6 @@ import socket
 import json
 from datetime import date, datetime
 
-
 def use_k8s_secret(namespace, secret_name):
     config.load_incluster_config()
     v1 = client.CoreV1Api()
@@ -443,15 +442,41 @@ class MySpawner(KubeSpawner):
         # Collab users have no auth state of their own — use the requesting user's token
         if spawner.user.name.endswith('-collab'):
             entities = []
+            preselected_entity = None
             if spawner.handler:
                 requesting_user = spawner.handler.current_user
                 if requesting_user:
                     requesting_auth_state = await requesting_user.get_auth_state()
                     if requesting_auth_state and requesting_auth_state.get('access_token'):
+                        access_token = requesting_auth_state['access_token']
+                        self._collab_access_token = access_token
+                        self._collab_refresh_token = requesting_auth_state.get('refresh_token', '')
                         try:
-                            entities = await get_user_entities(requesting_auth_state['access_token'])
-                            self._collab_access_token = requesting_auth_state['access_token']
-                            self._collab_refresh_token = requesting_auth_state.get('refresh_token', '')
+                            # Extract the group_id_short from the collab username
+                            # Format: {slug}-{group_id_short}-collab → strip -collab, take last segment
+                            base_name = spawner.user.name[:-7]  # strip "-collab" (7 chars)
+                            group_id_short = base_name.split("-")[-1]
+
+                            # Find this group's entity_id from the workspaces API
+                            all_groups = await get_groups_by_cndp(access_token)
+                            matching_group = next(
+                                (g for g in all_groups if g.get("group_id", "").startswith(group_id_short)),
+                                None
+                            )
+
+                            # Fetch requesting user's entities and filter to the group's entity
+                            all_entities = await get_user_entities(access_token)
+                            if matching_group and matching_group.get("entity_id"):
+                                group_entity_id = matching_group["entity_id"]
+                                filtered = [e for e in all_entities if e.get("entity_id") == group_entity_id]
+                                if filtered:
+                                    entities = filtered
+                                    preselected_entity = group_entity_id
+                                else:
+                                    # Entity not in user's list — fall back to all entities
+                                    entities = all_entities
+                            else:
+                                entities = all_entities
                         except Exception as e:
                             print(f"Error fetching entities for collab spawn: {e}")
             self.entity_list = entities
@@ -459,7 +484,7 @@ class MySpawner(KubeSpawner):
             return template.render(
                 profile_list=self.profile_list,
                 entity_list=entities,
-                preselected_entity=None,
+                preselected_entity=preselected_entity,
             )
 
         try:
@@ -588,6 +613,22 @@ async def get_user_pvcs(token):
     except (http.client.HTTPException, TimeoutError, json.JSONDecodeError, socket.timeout):
         return []
     
+async def get_groups_by_cndp(token, where_created="NDP"):
+    """Fetch all groups for a CNDP namespace to look up a group's entity_id."""
+    try:
+        conn = http.client.HTTPSConnection("ndp-test.sdsc.edu")
+        headers = {
+            'Authorization': f'Bearer {token}',
+            'Content-Type': 'application/json'}
+        conn.request("GET", f"/workspaces-api/group/get_groups_by_cndp?where_created={where_created}", headers=headers)
+        response = conn.getresponse()
+        if response.status != 200:
+            return []
+        return json.loads(response.read().decode("utf-8"))
+    except Exception as e:
+        print(f"Error fetching groups by cndp: {e}")
+        return []
+
 ## Function to retrieve user entities
 async def get_user_entities(token):
     try:
@@ -715,13 +756,15 @@ async def pre_spawn_hook(spawner):
     spawner.environment.update({'ENTITY_NAME': entity_name or ''})
 
     if username[-6:] == "collab":
-        access_token = getattr(spawner, '_collab_access_token', '')
-        refresh_token = getattr(spawner, '_collab_refresh_token', '')
-        if access_token:
-            spawner.environment.update({'ACCESS_TOKEN': access_token})
-            spawner.environment.update({'REFRESH_TOKEN': refresh_token})
+        pvc_token = getattr(spawner, '_collab_access_token', '')
+        if pvc_token:
+            spawner.environment.update({'ACCESS_TOKEN': pvc_token})
+            spawner.environment.update({'REFRESH_TOKEN': getattr(spawner, '_collab_refresh_token', '')})
     else:
-        PVCs = await get_user_pvcs(spawner.access_token)
+        pvc_token = getattr(spawner, 'access_token', '')
+
+    if pvc_token:
+        PVCs = await get_user_pvcs(pvc_token)
         if PVCs:
             print(f"USER SHARED {PVCs}")
             folder_names = []
@@ -778,35 +821,31 @@ async def pre_spawn_hook(spawner):
                             'persistentVolumeClaim': {'claimName': claim_name}
                         })
                     
-                await update_pvc(spawner.access_token, pvc['pvc_id'])
+                await update_pvc(pvc_token, pvc['pvc_id'])
             spawner.extra_pod_config = spawner.extra_pod_config or {}
             spawner.extra_pod_config.setdefault('initContainers', []).extend(init_containers)
 
 # c.LabServerApp.collaborative = True
 c.JupyterHub.template_paths = ['/etc/jupyterhub/custom']
 c.JupyterHub.spawner_class = MySpawner
+c.JupyterHub.db_url = f"postgresql+psycopg2://jupyterhub:{os.environ.get('JUPYTERHUB_DB_PASS', '')}@postgres:5432/jupyterhub"
 c.JupyterHub.allow_named_servers = False
 c.JupyterHub.authenticator_class = MyAuthenticator
 # Append a service with an API token for Prometheus metrics scraping
 c.JupyterHub.services.append(
     {
-        "name": "service-prometheus", 
+        "name": "service-prometheus",
         "api_token": os.environ["JUPYTERHUB_METRICS_API_KEY"]
     }
 )
 
-project_config = {
-    "projects": {
-        "vox": {
-            "id": ":p",
-            "members": ["sstrivedi@ucsd.edu", "i3perez@ucsd.edu"]
-        },
-        "test_rtc": {
-            "id": "7d7018a1-402a-4fbd-b189-f58f7d6dbc2d",
-            "members": ["sstrivedi@ucsd.edu", "pramonettivega@ucsd.edu"]
-        },
+c.JupyterHub.services.append(
+    {
+        "name": "group-sync",
+        "api_token": os.environ["JUPYTERHUB_GROUP_SYNC_TOKEN"],
+        "admin": True,
     }
-}
+)
 
 
 # Append a service role to scrape prometheus metrics
@@ -824,38 +863,41 @@ c.JupyterHub.load_roles.append(
 )
 
 c.JupyterHub.load_groups = {
-    # collaborative accounts get added to this group
-    # so it's easy to see which accounts are collaboration accounts
     "collaborative": [],
 }
 
-for project_name, project in project_config["projects"].items():
-    # get the members of the project
-    members = project.get("members", [])
-    print(f"Adding project {project_name} with members {members}")
-    # add them to a group for the project
-    c.JupyterHub.load_groups[project_name] = members
-    # define a new user for the collaboration
-    collab_user = f"{project_name}-collab"
-    # add the collab user to the 'collaborative' group
-    # so we can identify it as a collab account
-    c.JupyterHub.load_groups["collaborative"].append(collab_user)
+def _fetch_groups_at_startup():
+    try:
+        conn = http.client.HTTPSConnection("ndp-test.sdsc.edu")
+        conn.request("GET", "/workspaces-api/group/get_groups_by_cndp?where_created=NDP",
+                     headers={"accept": "application/json"})
+        resp = conn.getresponse()
+        if resp.status == 200:
+            return json.loads(resp.read().decode("utf-8"))
+        print(f"[group-sync] Startup fetch returned {resp.status}")
+    except Exception as e:
+        print(f"[group-sync] Failed to fetch groups at hub startup: {e}")
+    return []
 
-    # finally, grant members of the project collaboration group
-    # access to the collab user's server,
-    # and the admin UI so they can start/stop the server
-    c.JupyterHub.load_roles.append(
-        {
-            "name": f"collab-access-{project_name}",
-            "scopes": [
-                f"access:servers!user={collab_user}",
-                f"admin:servers!user={collab_user}",
-                "admin-ui",
-                f"list:users!user={collab_user}",
-            ],
-            "groups": [project_name],
-        }
-    )
+def _make_jhub_name(group_id, group_name):
+    slug = "".join(ch if ch.isalnum() else "-" for ch in group_name.lower()).strip("-")[:24]
+    while "--" in slug:
+        slug = slug.replace("--", "-")
+    return f"{slug}-{group_id[:8]}"
+
+for _g in _fetch_groups_at_startup():
+    _jhub_name = _make_jhub_name(_g["group_id"], _g["group_name"])
+    _collab_user = f"{_jhub_name}-collab"
+    c.JupyterHub.load_roles.append({
+        "name": f"collab-access-{_jhub_name}",
+        "scopes": [
+            f"access:servers!user={_collab_user}",
+            f"admin:servers!user={_collab_user}",
+            "admin-ui",
+            f"list:users!user={_collab_user}",
+        ],
+        "groups": [_jhub_name],
+    })
 
 # check only once per day not to block single-user
 c.MyAuthenticator.auth_refresh_age = 86300

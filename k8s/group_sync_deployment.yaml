@@ -1,0 +1,129 @@
+# ServiceAccount used by the group-sync pod to authenticate with the k8s API.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: group-sync
+  namespace: ndp-test
+---
+# Role granting the sync pod permission to patch the hub deployment (for rolling restarts).
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: group-sync-hub-restarter
+  namespace: ndp-test
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    resourceNames: ["hub"]
+    verbs: ["get", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: group-sync-hub-restarter
+  namespace: ndp-test
+subjects:
+  - kind: ServiceAccount
+    name: group-sync
+    namespace: ndp-test
+roleRef:
+  kind: Role
+  name: group-sync-hub-restarter
+  apiGroup: rbac.authorization.k8s.io
+---
+# Secret holding the JupyterHub API token for the group sync deployment.
+#
+# jupyterhub-api-token: generate with `openssl rand -hex 32`
+#   → must match JUPYTERHUB_GROUP_SYNC_TOKEN in values_test.yaml extraEnv
+#
+# Keycloak client_id/secret are read directly from the existing jupyterhub-secret
+# (mounted as a volume) — no need to duplicate them here.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: group-sync-secret
+  namespace: ndp-test
+stringData:
+  jupyterhub-api-token: "<JUPYTERHUB_GROUP_SYNC_TOKEN>"
+---
+# ConfigMap holding the sync script.
+# Create/update from file with:
+#   kubectl create configmap group-sync-script \
+#     --from-file=group_sync.py=k8s/group_sync.py \
+#     -n ndp-test --dry-run=client -o yaml | kubectl apply -f -
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: group-sync-script
+  namespace: ndp-test
+data:
+  group_sync.py: |
+    # paste contents of k8s/group_sync.py here
+---
+# Deployment — runs the sync script in a continuous poll loop.
+# Set POLL_INTERVAL to how often (in seconds) you want groups resynced.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: group-sync
+  namespace: ndp-test
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: group-sync
+  template:
+    metadata:
+      labels:
+        app: group-sync
+    spec:
+      serviceAccountName: group-sync
+      containers:
+        - name: group-sync
+          image: python:3.11-slim
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+          command:
+            - bash
+            - -c
+            - echo STEP1 && pip install requests -q && echo STEP2 && python -u /scripts/group_sync.py; echo "Python exited with $?"
+          env:
+            - name: JUPYTERHUB_API_URL
+              value: "http://hub:8081/hub/api"
+            - name: WORKSPACE_API_URL
+              value: "https://ndp-test.sdsc.edu/workspaces-api"
+            - name: KEYCLOAK_URL
+              value: "https://idp-test.nationaldataplatform.org"
+            - name: WHERE_CREATED
+              value: "NDP"
+            - name: POLL_INTERVAL
+              value: "60"
+            - name: NAMESPACE
+              value: "ndp-test"
+            - name: PYTHONUNBUFFERED
+              value: "1"
+            - name: JUPYTERHUB_API_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: group-sync-secret
+                  key: jupyterhub-api-token
+            - name: JUPYTERHUB_SECRET_FILE
+              value: "/etc/jupyterhub-secret/values.yaml"
+          volumeMounts:
+            - name: script
+              mountPath: /scripts
+            - name: jupyterhub-secret
+              mountPath: /etc/jupyterhub-secret
+              readOnly: true
+      volumes:
+        - name: script
+          configMap:
+            name: group-sync-script
+        - name: jupyterhub-secret
+          secret:
+            secretName: jupyterhub-secret
