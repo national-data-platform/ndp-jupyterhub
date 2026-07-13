@@ -7,7 +7,6 @@ For each group returned by the workspaces API this script will:
   - Add members to the group
   - Create a {group_name_slug}-{group_id_short}-collab user
   - Add the collab user to the "collaborative" group
-  - Create/update the collab-access role so group members can spawn/access the collab server
 
 Environment variables:
   JUPYTERHUB_API_TOKEN      - Token for JupyterHub admin API (from group-sync-secret)
@@ -17,7 +16,7 @@ Environment variables:
   JUPYTERHUB_API_URL        - Internal hub URL (default: http://hub:8081/hub/api)
   WORKSPACE_API_URL         - Workspaces API base URL
   KEYCLOAK_URL              - Keycloak base URL
-  POLL_INTERVAL             - Seconds between syncs. 0 = one-shot (CronJob), >0 = loop (Deployment)
+  POLL_INTERVAL             - Seconds between syncs. 0 = one-shot, >0 = loop (Deployment)
 """
 
 import os
@@ -27,6 +26,7 @@ import time
 import logging
 import requests
 from datetime import datetime
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger(__name__)
@@ -39,16 +39,12 @@ WHERE_CREATED        = os.environ.get("WHERE_CREATED", "NDP")
 POLL_INTERVAL        = int(os.environ.get("POLL_INTERVAL", "0"))
 NAMESPACE            = os.environ.get("NAMESPACE", "ndp-test")
 
+HUB_TIMEOUT = 30  # seconds for all JupyterHub API calls
+
 _known_groups = None  # None = first run; dict of {group_id: jhub_name}
 
 
 def load_keycloak_creds():
-    """
-    Load Keycloak client_id and client_secret from the mounted jupyterhub-secret
-    file (same secret and parsing logic the hub uses in use_k8s_secret).
-    Falls back to KEYCLOAK_CLIENT_ID / KEYCLOAK_CLIENT_SECRET env vars.
-    Returns ("", "") if neither is available — auth will be skipped.
-    """
     secret_file = os.environ.get("JUPYTERHUB_SECRET_FILE", "")
     if secret_file:
         try:
@@ -71,10 +67,6 @@ HUB_HEADERS = {
 
 
 def get_service_token():
-    """
-    Fetch a short-lived access token from Keycloak using client credentials.
-    Returns None if client credentials are not configured (open endpoint).
-    """
     if not KEYCLOAK_CLIENT_ID or not KEYCLOAK_CLIENT_SECRET:
         return None
     resp = requests.post(
@@ -91,14 +83,9 @@ def get_service_token():
 
 
 def fetch_groups(token):
-    """
-    Fetch groups from workspaces API filtered by WHERE_CREATED.
-    Returns a list of { group_id, group_name, entity_id, members: [...] }
-    """
     headers = {"accept": "application/json"}
     if token:
         headers["Authorization"] = f"Bearer {token}"
-
     resp = requests.get(
         f"{WORKSPACE_API_URL}/group/get_groups_by_cndp",
         params={"where_created": WHERE_CREATED},
@@ -110,18 +97,12 @@ def fetch_groups(token):
 
 
 def make_jhub_name(group_id, group_name):
-    """
-    Build a unique JupyterHub-safe name from group_name + short group_id.
-    group_name is not unique in the API, so we suffix with 8 chars of group_id.
-
-    e.g. "ES group - 2", "1769f3af-..." → "es-group-2-1769f3af"
-    """
     slug = re.sub(r"[^a-z0-9]+", "-", group_name.lower()).strip("-")[:24]
     return f"{slug}-{group_id[:8]}"
 
 
 def ensure_group(jhub_group):
-    r = requests.post(f"{JUPYTERHUB_API_URL}/groups/{jhub_group}", headers=HUB_HEADERS)
+    r = requests.post(f"{JUPYTERHUB_API_URL}/groups/{jhub_group}", headers=HUB_HEADERS, timeout=HUB_TIMEOUT)
     if r.status_code not in (200, 201, 409):
         log.warning(f"Unexpected status creating group '{jhub_group}': {r.status_code} {r.text}")
 
@@ -133,19 +114,42 @@ def add_users_to_group(jhub_group, users):
         f"{JUPYTERHUB_API_URL}/groups/{jhub_group}/users",
         headers=HUB_HEADERS,
         json={"users": users},
+        timeout=HUB_TIMEOUT,
     )
     if r.status_code not in (200, 201):
         log.warning(f"Unexpected status adding users to '{jhub_group}': {r.status_code} {r.text}")
 
 
 def ensure_user(username):
-    r = requests.post(f"{JUPYTERHUB_API_URL}/users/{username}", headers=HUB_HEADERS)
+    r = requests.post(f"{JUPYTERHUB_API_URL}/users/{username}", headers=HUB_HEADERS, timeout=HUB_TIMEOUT)
     if r.status_code not in (200, 201, 409):
         log.warning(f"Unexpected status creating user '{username}': {r.status_code} {r.text}")
 
 
+def delete_group(jhub_group):
+    r = requests.delete(f"{JUPYTERHUB_API_URL}/groups/{jhub_group}", headers=HUB_HEADERS, timeout=HUB_TIMEOUT)
+    if r.status_code not in (200, 204, 404):
+        log.warning(f"Unexpected status deleting group '{jhub_group}': {r.status_code} {r.text}")
+
+
+def delete_role(role_name):
+    r = requests.delete(f"{JUPYTERHUB_API_URL}/roles/{role_name}", headers=HUB_HEADERS, timeout=HUB_TIMEOUT)
+    if r.status_code not in (200, 204, 404):
+        log.warning(f"Unexpected status deleting role '{role_name}': {r.status_code} {r.text}")
+
+
+def remove_user_from_group(jhub_group, username):
+    r = requests.delete(
+        f"{JUPYTERHUB_API_URL}/groups/{jhub_group}/users",
+        headers=HUB_HEADERS,
+        json={"users": [username]},
+        timeout=HUB_TIMEOUT,
+    )
+    if r.status_code not in (200, 204, 404):
+        log.warning(f"Unexpected status removing '{username}' from '{jhub_group}': {r.status_code} {r.text}")
+
+
 def restart_hub():
-    """Trigger a rolling restart of the hub deployment using the pod's service account token."""
     try:
         with open("/var/run/secrets/kubernetes.io/serviceaccount/token") as f:
             sa_token = f.read().strip()
@@ -158,6 +162,7 @@ def restart_hub():
             headers={"Authorization": f"Bearer {sa_token}", "Content-Type": "application/strategic-merge-patch+json"},
             json=patch,
             verify=ca_cert,
+            timeout=HUB_TIMEOUT,
         )
         if r.status_code == 200:
             log.info("Hub rolling restart triggered for new groups")
@@ -167,69 +172,20 @@ def restart_hub():
         log.error(f"Failed to restart hub: {e}", exc_info=True)
 
 
-def delete_group(jhub_group):
-    r = requests.delete(f"{JUPYTERHUB_API_URL}/groups/{jhub_group}", headers=HUB_HEADERS)
-    if r.status_code not in (200, 204, 404):
-        log.warning(f"Unexpected status deleting group '{jhub_group}': {r.status_code} {r.text}")
-
-
-def delete_role(role_name):
-    r = requests.delete(f"{JUPYTERHUB_API_URL}/roles/{role_name}", headers=HUB_HEADERS)
-    if r.status_code not in (200, 204, 404):
-        log.warning(f"Unexpected status deleting role '{role_name}': {r.status_code} {r.text}")
-
-
-def remove_user_from_group(jhub_group, username):
-    r = requests.delete(
-        f"{JUPYTERHUB_API_URL}/groups/{jhub_group}/users",
-        headers=HUB_HEADERS,
-        json={"users": [username]},
-    )
-    if r.status_code not in (200, 204, 404):
-        log.warning(f"Unexpected status removing '{username}' from '{jhub_group}': {r.status_code} {r.text}")
-
-
-def delete_group(jhub_group):
-    r = requests.delete(f"{JUPYTERHUB_API_URL}/groups/{jhub_group}", headers=HUB_HEADERS)
-    if r.status_code not in (200, 204, 404):
-        log.warning(f"Unexpected status deleting group '{jhub_group}': {r.status_code} {r.text}")
-
-
-def delete_role(role_name):
-    r = requests.delete(f"{JUPYTERHUB_API_URL}/roles/{role_name}", headers=HUB_HEADERS)
-    if r.status_code not in (200, 204, 404):
-        log.warning(f"Unexpected status deleting role '{role_name}': {r.status_code} {r.text}")
-
-
-def remove_user_from_group(jhub_group, username):
-    r = requests.delete(
-        f"{JUPYTERHUB_API_URL}/groups/{jhub_group}/users",
-        headers=HUB_HEADERS,
-        json={"users": [username]},
-    )
-    if r.status_code not in (200, 204, 404):
-        log.warning(f"Unexpected status removing '{username}' from '{jhub_group}': {r.status_code} {r.text}")
-
-
-def upsert_role(role_name, scopes, groups):
-    r = requests.get(f"{JUPYTERHUB_API_URL}/roles/{role_name}", headers=HUB_HEADERS)
-    if r.status_code == 200:
-        requests.delete(f"{JUPYTERHUB_API_URL}/roles/{role_name}", headers=HUB_HEADERS)
-    r = requests.post(
-        f"{JUPYTERHUB_API_URL}/roles",
-        headers=HUB_HEADERS,
-        json={"name": role_name, "scopes": scopes},
-    )
-    if r.status_code not in (200, 201):
-        log.warning(f"Unexpected status creating role '{role_name}': {r.status_code} {r.text}")
-        return
-    for group in groups:
-        r = requests.post(
-            f"{JUPYTERHUB_API_URL}/groups/{group}/roles/{role_name}",
-            headers=HUB_HEADERS,
-        )
-        if r.status_code not in (200, 201):
-            log.warning(f"Unexpected status assigning role '{role_name}' to group '{group}': {r.status_code} {r.text}")
+def sync_one_group(group):
+    """Sync a single group — runs in a thread pool worker."""
+    group_id   = group["group_id"]
+    group_name = group["group_name"]
+    members    = [m for m in (group.get("members") or []) if m]
+    jhub_name   = make_jhub_name(group_id, group_name)
+    collab_user = f"{jhub_name}-collab"
+    log.info(f"Syncing '{group_name}' → '{jhub_name}' ({len(members)} members)")
+    ensure_group(jhub_name)
+    for _member in members:
+        ensure_user(_member)
+    add_users_to_group(jhub_name, members)
+    ensure_user(collab_user)
+    add_users_to_group("collaborative", [collab_user])
 
 
 def sync():
@@ -244,7 +200,24 @@ def sync():
     groups = fetch_groups(token)
     log.info(f"Fetched {len(groups)} groups (where_created={WHERE_CREATED})")
 
-    current_groups = {g["group_id"]: make_jhub_name(g["group_id"], g["group_name"]) for g in groups}
+    # Guard: if we fetched 0 groups but previously knew of groups, the API is likely
+    # down or returning bad data — skip this cycle to avoid incorrectly deleting everything
+    if not groups and _known_groups:
+        log.warning("Fetched 0 groups but expected groups from previous sync — workspaces API may be down. Skipping.")
+        return
+
+    # Skip groups with no members — they don't need collab servers
+    groups = [g for g in groups if g.get("members")]
+    log.info(f"{len(groups)} groups with members after filtering")
+
+    # {group_id: (jhub_name, frozenset(members))}
+    current_groups = {
+        g["group_id"]: (
+            make_jhub_name(g["group_id"], g["group_name"]),
+            frozenset(m for m in (g.get("members") or []) if m)
+        )
+        for g in groups
+    }
 
     if _known_groups is None:
         _known_groups = current_groups
@@ -252,8 +225,12 @@ def sync():
 
     new_ids     = current_groups.keys() - _known_groups.keys()
     deleted_ids = _known_groups.keys() - current_groups.keys()
+    changed_ids = {
+        gid for gid in current_groups.keys() & _known_groups.keys()
+        if current_groups[gid][1] != _known_groups[gid][1]
+    }
 
-    # Trigger hub restart immediately for new groups — before iterating all groups
+    # Trigger hub restart immediately for new groups
     if new_ids:
         new_names = [g["group_name"] for g in groups if g["group_id"] in new_ids]
         log.info(f"{len(new_ids)} new group(s) detected: {new_names} — triggering hub restart")
@@ -263,7 +240,7 @@ def sync():
     if deleted_ids:
         log.info(f"{len(deleted_ids)} group(s) removed from workspaces API, cleaning up")
         for deleted_id in deleted_ids:
-            jhub_name   = _known_groups[deleted_id]
+            jhub_name   = _known_groups[deleted_id][0]
             collab_user = f"{jhub_name}-collab"
             log.info(f"Cleaning up deleted group → '{jhub_name}'")
             delete_role(f"collab-access-{jhub_name}")
@@ -272,24 +249,25 @@ def sync():
 
     _known_groups = current_groups
 
+    # Only sync groups that are new or have changed membership
+    ids_to_sync = new_ids | changed_ids
+    groups_to_sync = [g for g in groups if g["group_id"] in ids_to_sync]
+
+    if not groups_to_sync:
+        log.info("No group changes detected, skipping sync loop")
+        return
+
+    log.info(f"Syncing {len(groups_to_sync)} changed/new group(s) out of {len(groups)} total")
     ensure_group("collaborative")
 
-    for group in groups:
-        group_id   = group["group_id"]
-        group_name = group["group_name"]
-        members    = [m for m in (group.get("members") or []) if m]
-
-        jhub_name   = make_jhub_name(group_id, group_name)
-        collab_user = f"{jhub_name}-collab"
-
-        log.info(f"Syncing '{group_name}' → '{jhub_name}' ({len(members)} members)")
-
-        ensure_group(jhub_name)
-        for _member in members:
-            ensure_user(_member)
-        add_users_to_group(jhub_name, members)
-        ensure_user(collab_user)
-        add_users_to_group("collaborative", [collab_user])
+    with ThreadPoolExecutor(max_workers=10) as executor:
+        futures = {executor.submit(sync_one_group, group): group for group in groups_to_sync}
+        for future in as_completed(futures):
+            try:
+                future.result()
+            except Exception as e:
+                failed_group = futures[future]
+                log.error(f"Error syncing group '{failed_group['group_name']}': {e}")
 
 
 if __name__ == "__main__":

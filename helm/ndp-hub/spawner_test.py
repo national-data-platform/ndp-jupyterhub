@@ -886,6 +886,8 @@ def _make_jhub_name(group_id, group_name):
     return f"{slug}-{group_id[:8]}"
 
 for _g in _fetch_groups_at_startup():
+    if not _g.get("members"):  # skip groups with no members — no collab server needed
+        continue
     _jhub_name = _make_jhub_name(_g["group_id"], _g["group_name"])
     _collab_user = f"{_jhub_name}-collab"
     c.JupyterHub.load_roles.append({
