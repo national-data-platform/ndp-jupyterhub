@@ -54,20 +54,21 @@ os.environ['JUPYTERHUB_CRYPT_KEY'] = token_hex(32)
 
 original_profile_list = [
     {
+        'display_name': "NDP-EP/SciDx ALL-IN-ONE Demo",
+        'default': False,
+        'slug': "14",
+        'kubespawner_override': {
+            'image': "ghcr.io/sci-ndp/ndp-ep-demo-allinone:latest",
+            'image_pull_policy': 'Always',
+        }
+    },
+    {
         'display_name': "NDP-EP/SciDx Remote Execution Environment",
         'default': False,
         'slug': "13",
         'kubespawner_override': {
             'image': 'yutianqin/scidx-rexec-quickstart:latest',
             'image_pull_policy': 'Always',
-        }
-    },
-    {
-        'display_name': "NDP Endpoint Data Streaming & Data Staging Examples",
-        'default': False,
-        'slug': "12",
-        'kubespawner_override': {
-            'image': 'yutianqin/rai-utah-hackathon:latest',
         }
     },
     {
