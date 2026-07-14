@@ -180,6 +180,11 @@ class MySpawner(KubeSpawner):
 
                     <label for="entity-select">What do you want to work on?</label>
                     <select class="form-control input" name="entity" required>
+                    <!--
+                    {% if entity_list and entity_list[0].entity_id == "expired" %}
+                    <option value="" disabled selected>{{ entity_list[0].name }}</option>
+                    {% else %}
+                    -->
                     <option value="" disabled {% if not preselected_entity %}selected{% endif %}>Select</option>
                     {% for entity in entity_list %}
                     {% set value = entity.workspace_id or entity.entity_id %}
@@ -190,6 +195,9 @@ class MySpawner(KubeSpawner):
                     </option>
                     {% endif %}
                     {% endfor %}
+                    <!--
+                    {% endif %}
+                    -->
                     </select>
 
                     <!-- Profile selection -->
@@ -273,7 +281,7 @@ class MySpawner(KubeSpawner):
                 setattr(self, k, image)
 
                 selected_id = formdata.get('entity', [''])[0]
-        
+
         selected_id = formdata.get('entity', [''])[0]
         entity_name = ''
         workspace_id = ''
@@ -284,7 +292,7 @@ class MySpawner(KubeSpawner):
                 workspace_id = entity.get('workspace_id', '')
                 entity_id = entity.get('entity_id', '')
                 break
-        
+
         self.entity_id = entity_id
         self.workspace_id = workspace_id
         self.entity_name = entity_name
@@ -336,10 +344,28 @@ class MySpawner(KubeSpawner):
 
     async def options_form(self, spawner):
         try:
-            entities = await get_user_entities(spawner.access_token)
+            # spawner.access_token is set by auth_state_hook only when the server starts,
+            # so it holds the token from the last server launch (could be stale).
+            # Always read fresh auth_state from the DB and attempt a token refresh so
+            # the workspace API call uses a valid token regardless of auth_refresh_age.
+            auth_state = await spawner.user.get_auth_state()
+            if not auth_state:
+                raise RuntimeError("No auth state found for user")
+            refreshed = spawner.authenticator.check_refresh_token_keycloak(auth_state)
+            if refreshed:
+                access_token, new_refresh = refreshed
+                auth_state['access_token'] = access_token
+                auth_state['refresh_token'] = new_refresh
+                await spawner.user.save_auth_state(auth_state)
+            else:
+                access_token = auth_state.get('access_token')
+            entities = await get_user_entities(access_token)
         except Exception as e:
-            self.log.error(f"Error fetching entities: {e}")
-            entities = []
+            print(f"Error fetching entities: {e}")
+            entities = [{
+                "entity_id": "expired",
+                "name": "Session expired. Please log out and log in again."
+                }]
 
         # Grab ?source=... from request (if present)
         source = None
@@ -461,12 +487,12 @@ async def get_user_pvcs(token):
         conn.request("GET", "/workspaces-api/read_pvc_by_user", headers=headers)
         response = conn.getresponse()
         if response.status != 200:
-            return []
+            raise RuntimeError(f"Request failed with status {response.status}: {response.reason}")
         data = json.loads(response.read().decode("utf-8"))
         return data
     except (http.client.HTTPException, TimeoutError, json.JSONDecodeError, socket.timeout):
         return []
-    
+
 ## Function to retrieve user entities
 async def get_user_entities(token):
     try:
