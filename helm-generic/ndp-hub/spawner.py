@@ -615,7 +615,6 @@ async def pre_spawn_hook(spawner):
                                 'spec': {
                                     'accessModes': ['ReadWriteMany'],
                                     'resources': {'requests': {'storage': '5Gi'}},
-                                    # 'storageClassName': 'rook-cephfs-central'
                                     'storageClassName': STORAGE_CLASS
                                 }
                             }
