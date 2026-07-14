@@ -541,7 +541,7 @@ async def pre_spawn_hook(spawner):
         f"&& {pip_install_command4} || true "
         f"&& {pelican_exe_command} || true "
         f"&& cd /home/jovyan/work || true "
-        f"&& exec {' '.join(original_cmd)}"
+        f"&& exec {' '.join(original_cmd)} '--ServerApp.allow_origin=*'" # Allow CORS if behind a proxy
     ]
 
     username = spawner.user.name
