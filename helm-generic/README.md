@@ -80,10 +80,8 @@ For more information on `kubectl` and `helm`, refer to the following resources:
 ## **Access your JupyterHub**
 `http://<ingress-host>/jupyter/`
 
-## **Optional follow-up**: verify and cleanup
+## **Cleanup**
 
-`make status`: Run to confirm helm release is healthy.<br>
-`make get-ingress`: Grab the ingress endpoint when you need the URL.<br>
 `make uninstall`: Remove the helm release.<br>
 `make delete-jhub-secret`: Delete the jupyterhub-secret from the cluster.
 
