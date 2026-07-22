@@ -3,13 +3,14 @@
 # docker push gitlab-registry.nrp-nautilus.io/ndp/ndp-docker-images/jh:2.0.11
 FROM jupyterhub/k8s-hub:3.0.0
 
-LABEL org.opencontainers.image.version="2.0.14"
-LABEL org.opencontainers.image.description="change 'Admin' to 'Collaboration' in the JupyterHub UI"
+LABEL org.opencontainers.image.version="3.0.1"
+LABEL org.opencontainers.image.description="Admin Page UI Mods for JupyterHub Collaboration -  First change: remove 'Start Server' button for pods"
 LABEL org.opencontainers.image.source="https://gitlab-registry.nrp-nautilus.io/ndp/ndp-docker-images"
 
 COPY templates/403.html /etc/jupyterhub/custom/403.html
 COPY templates/page.html /etc/jupyterhub/custom/page.html
 COPY templates/spawn.html /etc/jupyterhub/custom/spawn.html
+COPY templates/admin.html /etc/jupyterhub/custom/admin.html
 
 COPY pics/ndp_logo.png /usr/local/share/jupyterhub/static/images/ndp_logo.png
 COPY pics/ndp-landing-image.png /usr/local/share/jupyterhub/static/images/ndp-landing-image.png
@@ -21,4 +22,4 @@ RUN pip install kubernetes
 #  hub:
 #    image:
 #      name: gitlab-registry.nrp-nautilus.io/ndp/ndp-docker-images/jh
-#      tag: "2.0.11"
+#      tag: "3.0.1"
