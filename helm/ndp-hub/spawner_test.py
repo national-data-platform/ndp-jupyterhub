@@ -145,6 +145,12 @@ class MySpawner(KubeSpawner):
                     </style>
 
                     <label for="entity-select">What do you want to work on?</label>
+                    {% if entity_list | length == 1 %}
+                    {% set e = entity_list[0] %}
+                    {% set val = e.workspace_id or e.entity_id %}
+                    <h4 style="margin: 4px 0 16px 0;">{{ e.name or "Unnamed" }}</h4>
+                    <input type="hidden" name="entity" value="{{ val }}">
+                    {% else %}
                     <select class="form-control input" name="entity" required>
                     {% if entity_list and entity_list[0].entity_id == "expired" %}
                     <option value="" disabled selected>{{ entity_list[0].name }}</option>
@@ -161,6 +167,7 @@ class MySpawner(KubeSpawner):
                     {% endfor %}
                     {% endif %}
                     </select>
+                    {% endif %}
 
                     <label for="region">Region</label>
                     <select class="form-control input" name="region">
@@ -396,20 +403,25 @@ class MySpawner(KubeSpawner):
                 'tolerations': tolerations
             })
 
-        self.volume_mounts = [
-            {
-                'name': 'volume-ceph-bw-{username}',
-                'mountPath': f'/home/jovyan/work/{USER_PERSISTENT_STORAGE_FOLDER}',
-            }
-        ]
-        self.volumes = [
-            {
-                'name': 'volume-ceph-bw-{username}',
-                'persistentVolumeClaim': {
-                    'claimName': 'claim-ceph-bw-{username}'
+        if self.user.name.endswith('-collab'):
+            # Collab pods use only the shared group PVC — no private user storage
+            self.volume_mounts = []
+            self.volumes = []
+        else:
+            self.volume_mounts = [
+                {
+                    'name': 'volume-ceph-bw-{username}',
+                    'mountPath': f'/home/jovyan/work/{USER_PERSISTENT_STORAGE_FOLDER}',
                 }
-            },
-        ]
+            ]
+            self.volumes = [
+                {
+                    'name': 'volume-ceph-bw-{username}',
+                    'persistentVolumeClaim': {
+                        'claimName': 'claim-ceph-bw-{username}'
+                    }
+                },
+            ]
         if formdata.get('shm', [0])[0]:
             self.volume_mounts.append({
                 'name': 'dshm',
@@ -741,12 +753,15 @@ async def pre_spawn_hook(spawner):
 
     # Modify the spawner's start command to include the pip install
     original_cmd = spawner.cmd or ["jupyterhub-singleuser"]
+
+    # Collab pods have no private PVC — skip creating the git credentials directory inside it
+    git_creds = "" if spawner.user.name.endswith('-collab') else f"{git_creds_command0} && {git_creds_command1} && "
+
     spawner.cmd = [
         "bash",
         "-c",
-        f"{git_creds_command0} "
-        f"&& {git_creds_command1} "
-        f"&& {pip_install_command0} || true "
+        f"{git_creds}"
+        f"{pip_install_command0} || true "
         f"&& {pip_install_command1} || true "
         f"&& {pip_install_command2} || true "
         f"&& {pip_install_command3} || true "
@@ -758,6 +773,13 @@ async def pre_spawn_hook(spawner):
     ]
 
     username = spawner.user.name
+
+    if username.endswith('-collab'):
+        # Don't create or mount the private user PVC for collab pods
+        spawner.storage_pvc_ensure = False
+        spawner.storage_capacity = ''   # Prevents KubeSpawner from adding the default volume/mount
+        spawner.init_containers = []    # Remove the volume-permissions initContainer that references the private PVC
+
     spawner.environment.update({"CKAN_API_URL": CKAN_API_URL})
     spawner.environment.update({"PREKAN_API_URL": PREKAN_API_URL})
     spawner.environment.update({"WORKSPACE_API_URL": WORKSPACE_API_URL})

@@ -20,8 +20,57 @@
 
 {% block script %}
 {{ super() }}
+<script>
+  (function () {
+    function applyTextOverrides() {
+      // Change search input placeholder
+      var searchInput = document.querySelector('input[name="user_search"]');
+      if (searchInput && searchInput.placeholder !== 'Search collaborations') {
+        searchInput.placeholder = 'Search collaborations';
+      }
+
+      // Change "User" column header text, preserving the sort icon
+      var userHeader = document.querySelector('#user-header');
+      if (userHeader) {
+        var textNode = Array.from(userHeader.childNodes).find(function (n) {
+          return n.nodeType === 3 && n.textContent.trim() === 'User';
+        });
+        if (textNode) textNode.textContent = 'Collaborations ';
+      }
+    }
+
+    var observer = new MutationObserver(applyTextOverrides);
+    observer.observe(document.body, { childList: true, subtree: true });
+    applyTextOverrides();
+  })();
+</script>
 <style>
-  /* Hide "Start Server" button for all users — use only Spawn Page */
+  /* Hide "Start Server" button — use Spawn Page instead */
   .start-button { display: none; }
+
+  /* Hide "Manage Groups" link */
+  a[href="#/groups"] { display: none; }
+
+  /* Hide "Admin" column */
+  #admin-header,
+  [data-testid="user-row-admin"],
+  .noborder td:nth-child(2) { display: none; }
+
+  /* Hide "Server" column */
+  #server-header,
+  [data-testid="user-row-server"],
+  .noborder td:nth-child(3) { display: none; }
+
+  /* Hide "Actions" column (Edit User button) */
+  #actions-header,
+  .user-row td:last-child { display: none; }
+
+  /* Hide "Add Users" and "Shutdown Hub" buttons */
+  .add-users-button,
+  #shutdown-button { display: none; }
+
+  /* Hide expand/collapse button and its dropdown panel per row */
+  button[data-testid$="-collapse-button"],
+  tr:has(td[data-testid$="-td"]) { display: none; }
 </style>
 {% endblock %}

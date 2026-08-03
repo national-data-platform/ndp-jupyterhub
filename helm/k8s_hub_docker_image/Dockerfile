@@ -3,8 +3,8 @@
 # docker push gitlab-registry.nrp-nautilus.io/ndp/ndp-docker-images/jh:2.0.11
 FROM jupyterhub/k8s-hub:3.0.0
 
-LABEL org.opencontainers.image.version="3.0.1"
-LABEL org.opencontainers.image.description="Admin Page UI Mods for JupyterHub Collaboration -  First change: remove 'Start Server' button for pods"
+LABEL org.opencontainers.image.version="3.0.5"
+LABEL org.opencontainers.image.description="Admin Page UI Mods for JupyterHub Collaboration -  Fix Access Server button not showing up"
 LABEL org.opencontainers.image.source="https://gitlab-registry.nrp-nautilus.io/ndp/ndp-docker-images"
 
 COPY templates/403.html /etc/jupyterhub/custom/403.html
@@ -22,4 +22,4 @@ RUN pip install kubernetes
 #  hub:
 #    image:
 #      name: gitlab-registry.nrp-nautilus.io/ndp/ndp-docker-images/jh
-#      tag: "3.0.1"
+#      tag: "3.0.2"
