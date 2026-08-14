@@ -27,7 +27,10 @@
             <li><a href="{{base_url}}home">Home</a></li>
             <li><a href="{{base_url}}token">Token</a></li>
             {% if 'admin-ui' in parsed_scopes %}
-            <li><a href="{{base_url}}admin">Collaborations</a></li>
+            <li><a href="{{base_url}}collaborations">Collaborations</a></li>
+            {% endif %}
+            {% if user and user.admin %}
+            <li><a href="{{base_url}}admin">Admin</a></li>
             {% endif %}
             {% if services %}
             <li class="dropdown">

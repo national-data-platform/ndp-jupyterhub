@@ -210,11 +210,12 @@ def sync():
     groups = [g for g in groups if g.get("members")]
     log.info(f"{len(groups)} groups with members after filtering")
 
-    # {group_id: (jhub_name, frozenset(members))}
+    # {group_id: (jhub_name, frozenset(members), entity_name)}
     current_groups = {
         g["group_id"]: (
             make_jhub_name(g["group_id"], g["group_name"]),
-            frozenset(m for m in (g.get("members") or []) if m)
+            frozenset(m for m in (g.get("members") or []) if m),
+            g.get("entity_name") or "",
         )
         for g in groups
     }
@@ -234,6 +235,17 @@ def sync():
     if new_ids:
         new_names = [g["group_name"] for g in groups if g["group_id"] in new_ids]
         log.info(f"{len(new_ids)} new group(s) detected: {new_names} — triggering hub restart")
+        restart_hub()
+
+    # Trigger hub restart if entity name changed for any group that has an entity
+    entity_changed_ids = {
+        gid for gid in current_groups.keys() & _known_groups.keys()
+        if current_groups[gid][2]  # only groups tied to an entity
+        and current_groups[gid][2] != _known_groups[gid][2]
+    }
+    if entity_changed_ids:
+        changed_names = [current_groups[gid][0] for gid in entity_changed_ids]
+        log.info(f"{len(entity_changed_ids)} group(s) had entity name change: {changed_names} — triggering hub restart")
         restart_hub()
 
     # Clean up deleted groups via REST API — no hub restart needed

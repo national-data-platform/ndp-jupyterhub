@@ -1,4 +1,5 @@
-from tornado.web import HTTPError
+from tornado.web import HTTPError, authenticated
+from jupyterhub.handlers import BaseHandler
 from kubespawner import KubeSpawner
 from kubernetes import client, config
 from kubernetes.client.exceptions import ApiException
@@ -910,6 +911,30 @@ c.JupyterHub.load_groups = {
     "collaborative": [],
 }
 
+# --- Entity column in collaborations page
+_group_entity_map = {}
+
+class GroupEntityHandler(BaseHandler):
+    @authenticated
+    async def get(self):
+        self.set_header("Content-Type", "application/json")
+        self.finish(json.dumps(_group_entity_map))
+
+class CollaborationsHandler(BaseHandler):
+    @authenticated
+    async def get(self):
+        html = await self.render_template(
+            "collaborations.html",
+            api_page_limit=self.settings.get("api_page_limit", 100),
+        )
+        self.finish(html)
+
+c.JupyterHub.extra_handlers = [
+    (r"/ndp/group-entities", GroupEntityHandler),
+    (r"/collaborations", CollaborationsHandler),
+]
+# ---
+
 def _fetch_groups_at_startup():
     try:
         conn = http.client.HTTPSConnection("ndp-test.sdsc.edu")
@@ -934,6 +959,7 @@ for _g in _fetch_groups_at_startup():
         continue
     _jhub_name = _make_jhub_name(_g["group_id"], _g["group_name"])
     _collab_user = f"{_jhub_name}-collab"
+    _group_entity_map[_jhub_name] = _g.get("entity_name", "")  # entity column
     c.JupyterHub.load_roles.append({
         "name": f"collab-access-{_jhub_name}",
         "scopes": [

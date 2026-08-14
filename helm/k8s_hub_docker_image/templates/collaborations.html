@@ -1,0 +1,161 @@
+{% extends "page.html" %}
+
+{% block main %}
+<div id="react-admin-hook">
+  <script id="jupyterhub-admin-config">
+    window.api_page_limit = parseInt("{{ api_page_limit|safe }}")
+    // admin-react.js expects the JupyterHub root ("/"), not the hub prefix ("/hub/")
+    window.base_url = "{{ base_url|safe }}".replace(/hub\/?$/, '')
+    // our entity fetch still needs the full hub prefix
+    window.ndp_hub_base = "{{ base_url|safe }}"
+  </script>
+  <script>
+    // admin-react.js computes wrong API paths when not at /hub/admin —
+    // it produces /hub/hub/api/... instead of /hub/api/...
+    // Patch fetch before the React app loads so all API calls are corrected.
+    (function () {
+      var _fetch = window.fetch;
+      window.fetch = function (url) {
+        if (typeof url === 'string') url = url.replace('/hub/hub/', '/hub/');
+        return _fetch.apply(this, arguments);
+      };
+    })();
+  </script>
+  <script src={{ static_url("js/admin-react.js") }}></script>
+</div>
+{% endblock %}
+
+{% block footer %}
+<div class="container-fluid navbar-default small version_footer">
+  <div class="navbar-text">
+    JupyterHub {{ server_version }}
+  </div>
+</div>
+{% endblock %}
+
+{% block script %}
+{{ super() }}
+<script>
+  (function () {
+    function applyTextOverrides() {
+      // Change search input placeholder
+      var searchInput = document.querySelector('input[name="user_search"]');
+      if (searchInput && searchInput.placeholder !== 'Search collaborations') {
+        searchInput.placeholder = 'Search collaborations';
+      }
+
+      // Change "User" column header text, preserving the sort icon
+      var userHeader = document.querySelector('#user-header');
+      if (userHeader) {
+        var textNode = Array.from(userHeader.childNodes).find(function (n) {
+          return n.nodeType === 3 && n.textContent.trim() === 'User';
+        });
+        if (textNode) textNode.textContent = 'Collaborations ';
+      }
+    }
+
+    var observer = new MutationObserver(applyTextOverrides);
+    observer.observe(document.body, { childList: true, subtree: true });
+    applyTextOverrides();
+  })();
+</script>
+<style>
+  /* Hide "Start Server" button — use Spawn Page instead */
+  .start-button { display: none; }
+
+  /* Hide "Manage Groups" link */
+  a[href="#/groups"] { display: none; }
+
+  /* Hide "Admin" column */
+  #admin-header,
+  [data-testid="user-row-admin"],
+  .noborder td:nth-child(2) { display: none; }
+
+  /* Hide "Server" column */
+  #server-header,
+  [data-testid="user-row-server"],
+  .noborder td:nth-child(3) { display: none; }
+
+  /* Hide "Actions" column (Edit User button) */
+  #actions-header,
+  .user-row td:last-child { display: none; }
+
+  /* Hide "Add Users" and "Shutdown Hub" buttons */
+  .add-users-button,
+  #shutdown-button { display: none; }
+
+  /* Hide expand/collapse button and its dropdown panel per row */
+  button[data-testid$="-collapse-button"],
+  tr:has(td[data-testid$="-td"]) { display: none; }
+</style>
+
+<!-- === Entity column + UI cleanup === -->
+<script>
+  (function () {
+    var _ndpEntityMap = null;
+
+    function fetchEntityMap() {
+      fetch(window.ndp_hub_base + 'ndp/group-entities', { credentials: 'include' })
+        .then(function (r) { return r.json(); })
+        .then(function (data) { _ndpEntityMap = data; applyEntityColumn(); })
+        .catch(function (e) { console.warn('NDP: could not fetch group entities', e); });
+    }
+
+    function applyEntityColumn() {
+      if (!_ndpEntityMap) return;
+
+      var userHeader = document.querySelector('#user-header');
+      if (userHeader && !document.querySelector('#ndp-entity-header')) {
+        var th = document.createElement('th');
+        th.id = 'ndp-entity-header';
+        th.textContent = 'Entity';
+        userHeader.parentNode.insertBefore(th, userHeader.nextSibling);
+      }
+
+      document.querySelectorAll('.user-row').forEach(function (row) {
+        if (row.querySelector('.ndp-entity-cell')) return;
+
+        var btn = row.querySelector('button[data-testid$="-collapse-button"]');
+        if (!btn) return;
+        var username = btn.getAttribute('data-testid').replace(/-collapse-button$/, '');
+
+        var entityName = '';
+        if (username.endsWith('-collab')) {
+          entityName = _ndpEntityMap[username.replace(/-collab$/, '')] || '';
+        }
+
+        var td = document.createElement('td');
+        td.className = 'ndp-entity-cell';
+        td.textContent = entityName;
+        var firstTd = row.querySelector('td');
+        if (firstTd) firstTd.parentNode.insertBefore(td, firstTd.nextSibling);
+      });
+    }
+
+    function removeStartStopRow() {
+      document.querySelectorAll('button').forEach(function (btn) {
+        var text = btn.textContent.trim();
+        if (text === 'Start All' || text === 'Stop All') {
+          var row = btn.closest('tr');
+          if (row) { row.style.display = 'none'; return; }
+          if (btn.parentElement) btn.parentElement.style.display = 'none';
+        }
+      });
+    }
+
+    fetchEntityMap();
+    removeStartStopRow();
+    var ndpObserver = new MutationObserver(function () {
+      applyEntityColumn();
+      removeStartStopRow();
+    });
+    ndpObserver.observe(document.body, { childList: true, subtree: true });
+  })();
+</script>
+<style>
+  /* Keep entity column visible — nth-child rules above would otherwise hide it */
+  #ndp-entity-header,
+  .ndp-entity-cell { display: table-cell !important; }
+</style>
+<!-- === end Entity column === -->
+{% endblock %}

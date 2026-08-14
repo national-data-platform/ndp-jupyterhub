@@ -9,7 +9,7 @@ jupyterhub:
   hub:
     image:
       name: gitlab-registry.nrp-nautilus.io/ndp/ndp-docker-images/jh
-      tag: "3.0.5"
+      tag: "3.0.12"
     extraEnv:
       JUPYTERHUB_METRICS_API_KEY:
         valueFrom:
