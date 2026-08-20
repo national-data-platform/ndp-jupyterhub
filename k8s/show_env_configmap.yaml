@@ -19,6 +19,10 @@ data:
 
     c.ServerApp.contents_manager_class = EnvOnlyContentsManager
     c.ContentsManager.allow_hidden = True
+
+    # Allow recursive delete of non-empty folders from the file browser
+    c.FileContentsManager.delete_to_trash = False
+    c.FileContentsManager.always_delete_dir = True
     
   overrides.json: |
     {
