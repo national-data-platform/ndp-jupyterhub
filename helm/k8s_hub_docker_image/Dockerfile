@@ -1,6 +1,6 @@
 # docker
-# docker build ./helm/k8s_hub_docker_image -f ./helm/k8s_hub_docker_image/Dockerfile -t gitlab-registry.nrp-nautilus.io/ndp/ndp-docker-images/jh:2.0.11 --platform=linux/amd64
-# docker push gitlab-registry.nrp-nautilus.io/ndp/ndp-docker-images/jh:2.0.11
+# docker build ./helm/k8s_hub_docker_image -f ./helm/k8s_hub_docker_image/Dockerfile -t gitlab-registry.nrp-nautilus.io/ndp/ndp-docker-images/jh:2.0.14 --platform=linux/amd64
+# docker push gitlab-registry.nrp-nautilus.io/ndp/ndp-docker-images/jh:2.0.14
 FROM jupyterhub/k8s-hub:3.0.0
 
 LABEL org.opencontainers.image.version="3.0.12"
@@ -8,7 +8,7 @@ LABEL org.opencontainers.image.description="Admin Page UI Mods for JupyterHub Co
 LABEL org.opencontainers.image.source="https://gitlab-registry.nrp-nautilus.io/ndp/ndp-docker-images"
 
 COPY templates/403.html /etc/jupyterhub/custom/403.html
-COPY templates/page.html /etc/jupyterhub/custom/page.html
+COPY templates/page.html /etc/jupyterhub/custom/page.html`
 COPY templates/spawn.html /etc/jupyterhub/custom/spawn.html
 COPY templates/collaborations.html /etc/jupyterhub/custom/collaborations.html
 

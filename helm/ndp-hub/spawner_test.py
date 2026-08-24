@@ -523,7 +523,18 @@ class MySpawner(KubeSpawner):
             )
 
         try:
-            entities = await get_user_entities(spawner.access_token)
+            auth_state = await spawner.user.get_auth_state()
+            if not auth_state:
+                raise RuntimeError("No auth state found for user")
+            refreshed = spawner.authenticator.check_refresh_token_keycloak(auth_state)
+            if refreshed:
+                access_token, new_refresh = refreshed
+                auth_state['access_token'] = access_token
+                auth_state['refresh_token'] = new_refresh
+                await spawner.user.save_auth_state(auth_state)
+            else:
+                access_token = auth_state.get('access_token')
+            entities = await get_user_entities(access_token)
         except Exception as e:
             print(f"Error fetching entities: {e}")
             entities = [{

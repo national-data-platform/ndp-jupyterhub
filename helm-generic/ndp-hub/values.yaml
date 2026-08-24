@@ -3,7 +3,7 @@ jupyterhub:
   hub:
     image:
       name: yutianqin/ndp-k8s-hub
-      tag: "v1"
+      tag: "latest"
     extraEnv:
       JUPYTERHUB_METRICS_API_KEY:
         valueFrom:

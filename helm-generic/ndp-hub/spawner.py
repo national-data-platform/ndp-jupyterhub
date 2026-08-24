@@ -54,20 +54,21 @@ os.environ['JUPYTERHUB_CRYPT_KEY'] = token_hex(32)
 
 original_profile_list = [
     {
+        'display_name': "NDP-EP/SciDx ALL-IN-ONE Demo",
+        'default': False,
+        'slug': "14",
+        'kubespawner_override': {
+            'image': "ghcr.io/sci-ndp/ndp-ep-demo-allinone:latest",
+            'image_pull_policy': 'Always',
+        }
+    },
+    {
         'display_name': "NDP-EP/SciDx Remote Execution Environment",
         'default': False,
         'slug': "13",
         'kubespawner_override': {
             'image': 'yutianqin/scidx-rexec-quickstart:latest',
             'image_pull_policy': 'Always',
-        }
-    },
-    {
-        'display_name': "NDP Endpoint Data Streaming & Data Staging Examples",
-        'default': False,
-        'slug': "12",
-        'kubespawner_override': {
-            'image': 'yutianqin/rai-utah-hackathon:latest',
         }
     },
     {
@@ -179,6 +180,11 @@ class MySpawner(KubeSpawner):
 
                     <label for="entity-select">What do you want to work on?</label>
                     <select class="form-control input" name="entity" required>
+                    <!--
+                    {% if entity_list and entity_list[0].entity_id == "expired" %}
+                    <option value="" disabled selected>{{ entity_list[0].name }}</option>
+                    {% else %}
+                    -->
                     <option value="" disabled {% if not preselected_entity %}selected{% endif %}>Select</option>
                     {% for entity in entity_list %}
                     {% set value = entity.workspace_id or entity.entity_id %}
@@ -189,6 +195,9 @@ class MySpawner(KubeSpawner):
                     </option>
                     {% endif %}
                     {% endfor %}
+                    <!--
+                    {% endif %}
+                    -->
                     </select>
 
                     <!-- Profile selection -->
@@ -272,7 +281,7 @@ class MySpawner(KubeSpawner):
                 setattr(self, k, image)
 
                 selected_id = formdata.get('entity', [''])[0]
-        
+
         selected_id = formdata.get('entity', [''])[0]
         entity_name = ''
         workspace_id = ''
@@ -283,7 +292,7 @@ class MySpawner(KubeSpawner):
                 workspace_id = entity.get('workspace_id', '')
                 entity_id = entity.get('entity_id', '')
                 break
-        
+
         self.entity_id = entity_id
         self.workspace_id = workspace_id
         self.entity_name = entity_name
@@ -335,10 +344,28 @@ class MySpawner(KubeSpawner):
 
     async def options_form(self, spawner):
         try:
-            entities = await get_user_entities(spawner.access_token)
+            # spawner.access_token is set by auth_state_hook only when the server starts,
+            # so it holds the token from the last server launch (could be stale).
+            # Always read fresh auth_state from the DB and attempt a token refresh so
+            # the workspace API call uses a valid token regardless of auth_refresh_age.
+            auth_state = await spawner.user.get_auth_state()
+            if not auth_state:
+                raise RuntimeError("No auth state found for user")
+            refreshed = spawner.authenticator.check_refresh_token_keycloak(auth_state)
+            if refreshed:
+                access_token, new_refresh = refreshed
+                auth_state['access_token'] = access_token
+                auth_state['refresh_token'] = new_refresh
+                await spawner.user.save_auth_state(auth_state)
+            else:
+                access_token = auth_state.get('access_token')
+            entities = await get_user_entities(access_token)
         except Exception as e:
-            self.log.error(f"Error fetching entities: {e}")
-            entities = []
+            print(f"Error fetching entities: {e}")
+            entities = [{
+                "entity_id": "expired",
+                "name": "Session expired. Please log out and log in again."
+                }]
 
         # Grab ?source=... from request (if present)
         source = None
@@ -460,12 +487,12 @@ async def get_user_pvcs(token):
         conn.request("GET", "/workspaces-api/read_pvc_by_user", headers=headers)
         response = conn.getresponse()
         if response.status != 200:
-            return []
+            raise RuntimeError(f"Request failed with status {response.status}: {response.reason}")
         data = json.loads(response.read().decode("utf-8"))
         return data
     except (http.client.HTTPException, TimeoutError, json.JSONDecodeError, socket.timeout):
         return []
-    
+
 ## Function to retrieve user entities
 async def get_user_entities(token):
     try:
@@ -523,6 +550,8 @@ async def pre_spawn_hook(spawner):
     pip_install_command1 = ("pip install --upgrade jupyterlab==4.2.4 jupyter-archive==3.4.0 jupyterlab-launchpad==1.0.1")
     pip_install_command2 = ("pip install jupyterlab-git==0.50.1 --index-url https://gitlab.nrp-nautilus.io/api/v4/projects/3930/packages/pypi/simple --user")
     pip_install_command3 = (f"pip install ndp-jupyterlab-extension=={NDP_EXT_VERSION} --index-url https://gitlab.nrp-nautilus.io/api/v4/projects/3930/packages/pypi/simple --user")
+    pip_install_command4 = ("pip install 'pexpect>=4.9' --user")  # fix for git clone issue
+    pelican_exe_command = 'wget -O - "https://dl.pelicanplatform.org/latest/pelican_$(uname -s)_$(uname -m).tar.gz" | tar zx -C /home/jovyan/.local/bin/ --strip-components=1'
 
     # Modify the spawner's start command to include the pip install
     original_cmd = spawner.cmd or ["jupyterhub-singleuser"]
@@ -535,8 +564,10 @@ async def pre_spawn_hook(spawner):
         f"&& {pip_install_command1} || true "
         f"&& {pip_install_command2} || true "
         f"&& {pip_install_command3} || true "
+        f"&& {pip_install_command4} || true "
+        f"&& {pelican_exe_command} || true "
         f"&& cd /home/jovyan/work || true "
-        f"&& exec {' '.join(original_cmd)}"
+        f"&& exec {' '.join(original_cmd)} '--ServerApp.allow_origin=*'" # Allow CORS if behind a proxy
     ]
 
     username = spawner.user.name
@@ -584,7 +615,6 @@ async def pre_spawn_hook(spawner):
                                 'spec': {
                                     'accessModes': ['ReadWriteMany'],
                                     'resources': {'requests': {'storage': '5Gi'}},
-                                    # 'storageClassName': 'rook-cephfs-central'
                                     'storageClassName': STORAGE_CLASS
                                 }
                             }
