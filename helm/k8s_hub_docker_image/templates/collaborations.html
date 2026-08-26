@@ -1,6 +1,17 @@
 {% extends "page.html" %}
 
 {% block main %}
+<div style="padding: 1.5rem 1rem 0.5rem 1rem;">
+  <h2 style="margin-bottom: 0.4rem;">Collaborations</h2>
+  <p style="color: #555; max-width: 760px;">
+    Here you'll find the shared servers you're part of across your projects, classrooms, and data challenges.
+    Click <strong>Spawn Page</strong> to start your group's server. For an active session, use
+    <strong>Access Server</strong> to join it or <strong>Stop Server</strong> to end it.
+  </p>
+</div>
+<p id="ndp-loading-msg" style="padding: 0 1rem 1rem 1rem; color: #888; font-style: italic;">
+  Fetching your collaborations&hellip; this may take a moment.
+</p>
 <div id="react-admin-hook">
   <script id="jupyterhub-admin-config">
     window.api_page_limit = parseInt("{{ api_page_limit|safe }}")
@@ -40,8 +51,8 @@
     function applyTextOverrides() {
       // Change search input placeholder
       var searchInput = document.querySelector('input[name="user_search"]');
-      if (searchInput && searchInput.placeholder !== 'Search collaborations') {
-        searchInput.placeholder = 'Search collaborations';
+      if (searchInput && searchInput.placeholder !== 'Search group servers') {
+        searchInput.placeholder = 'Search group servers';
       }
 
       // Change "User" column header text, preserving the sort icon
@@ -50,7 +61,7 @@
         var textNode = Array.from(userHeader.childNodes).find(function (n) {
           return n.nodeType === 3 && n.textContent.trim() === 'User';
         });
-        if (textNode) textNode.textContent = 'Collaborations ';
+        if (textNode) textNode.textContent = 'Group Servers';
       }
     }
 
@@ -108,7 +119,7 @@
       if (userHeader && !document.querySelector('#ndp-entity-header')) {
         var th = document.createElement('th');
         th.id = 'ndp-entity-header';
-        th.textContent = 'Entity';
+        th.textContent = 'Your Collaborative Spaces';
         userHeader.parentNode.insertBefore(th, userHeader.nextSibling);
       }
 
@@ -145,9 +156,13 @@
 
     fetchEntityMap();
     removeStartStopRow();
+    var _loadingMsg = document.getElementById('ndp-loading-msg');
     var ndpObserver = new MutationObserver(function () {
       applyEntityColumn();
       removeStartStopRow();
+      if (_loadingMsg && document.querySelector('.user-row')) {
+        _loadingMsg.style.display = 'none';
+      }
     });
     ndpObserver.observe(document.body, { childList: true, subtree: true });
   })();

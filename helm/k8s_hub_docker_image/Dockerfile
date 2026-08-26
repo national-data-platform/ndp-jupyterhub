@@ -3,12 +3,12 @@
 # docker push gitlab-registry.nrp-nautilus.io/ndp/ndp-docker-images/jh:2.0.14
 FROM jupyterhub/k8s-hub:3.0.0
 
-LABEL org.opencontainers.image.version="3.0.12"
-LABEL org.opencontainers.image.description="Admin Page UI Mods for JupyterHub Collaboration - Still fixing landing to /hub/collaborations page, separate /hub/admin for admins"
+LABEL org.opencontainers.image.version="3.0.14"
+LABEL org.opencontainers.image.description="Admin Page UI Mods for JupyterHub Collaboration - Minor UI changes from Hub-2160"
 LABEL org.opencontainers.image.source="https://gitlab-registry.nrp-nautilus.io/ndp/ndp-docker-images"
 
 COPY templates/403.html /etc/jupyterhub/custom/403.html
-COPY templates/page.html /etc/jupyterhub/custom/page.html`
+COPY templates/page.html /etc/jupyterhub/custom/page.html
 COPY templates/spawn.html /etc/jupyterhub/custom/spawn.html
 COPY templates/collaborations.html /etc/jupyterhub/custom/collaborations.html
 

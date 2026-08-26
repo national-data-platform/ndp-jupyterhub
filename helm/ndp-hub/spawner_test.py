@@ -970,7 +970,9 @@ for _g in _fetch_groups_at_startup():
         continue
     _jhub_name = _make_jhub_name(_g["group_id"], _g["group_name"])
     _collab_user = f"{_jhub_name}-collab"
-    _group_entity_map[_jhub_name] = _g.get("entity_name", "")  # entity column
+    _entity_name = _g.get("entity_name") or ""
+    _entity_type = _g.get("type_of_entity") or ""
+    _group_entity_map[_jhub_name] = f"{_entity_type}: {_entity_name}" if (_entity_type and _entity_name) else _entity_name
     c.JupyterHub.load_roles.append({
         "name": f"collab-access-{_jhub_name}",
         "scopes": [
