@@ -88,6 +88,36 @@ Use this [documentation](https://docs.nationalresearchplatform.org/) for compreh
    helm uninstall ndp-hub --kube-context nautilus --namespace <namespace>
    ```
    
+### Run locally in KinD
+
+Runs the chart with `values_local.yaml` / `spawner_local.py` in a local [KinD](https://kind.sigs.k8s.io/) cluster (context `kind-jhub-local`, namespace `ndp-test-local`).
+The KinD targets keep the cluster credentials in `helm/config-kind` (git-ignored) instead of `~/.kube/config`; to use `kubectl`/`helm` against the cluster yourself, run `export KUBECONFIG=$PWD/config-kind` from `helm/`.
+
+Prerequisites: Docker, `kind`, `kubectl`, `helm`, Python 3 (as `python3` or `python`), and a Keycloak client on `idp-test.nationaldataplatform.org` that allows the redirect URI `http://localhost:8080/hub/oauth_callback` (ask NDP admins).
+
+1. Fill out the Keycloak client credentials:
+
+   ```bash
+   cd helm
+   cp ndp-hub/jupyterhub_secret.yaml ndp-hub/jupyterhub_secret_local.yaml
+   ```
+
+2. Create the cluster, the secrets, and the release (safe to re-run):
+
+   ```bash
+   helm dependency build ndp-hub
+   make kind-up
+   ```
+
+3. Open http://localhost:8080. To become hub admin, add your username to `admin_users` in `ndp-hub/values_local.yaml`.
+
+- After editing `values_local.yaml` or `spawner_local.py`: `make deploy-local`
+- After changing the credentials: `make kind-secrets`, then `kubectl --kubeconfig config-kind rollout restart deploy/hub`
+- Delete the cluster: `make kind-down`
+
+Notes:
+- The spawn form requests 16 GB RAM by default; lower it if your Docker VM has less memory, or the server pod will stay `Pending`.
+
 ### Important Notes
 1. Before making deployment to any environment, make sure to deploy the `helm/ndp-hub/jupyterhub_secret.yaml` with Keycloak secrets.
 
