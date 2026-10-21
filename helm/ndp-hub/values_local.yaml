@@ -19,7 +19,7 @@ jupyterhub:
     existingSecret: jupyterhub-secret
     config:
       GenericOAuthenticator:
-        oauth_callback_url: http://localhost:8080/hub/oauth_callback  # <-- LOCAL callback URL
+        oauth_callback_url: http://localhost:8082/hub/oauth_callback  # <-- LOCAL callback URL
         authorize_url: https://idp-test.nationaldataplatform.org/realms/NDP/protocol/openid-connect/auth
         token_url: https://idp-test.nationaldataplatform.org/realms/NDP/protocol/openid-connect/token
         userdata_url: https://idp-test.nationaldataplatform.org/realms/NDP/protocol/openid-connect/userinfo
@@ -32,7 +32,7 @@ jupyterhub:
         allowed_groups: ["jhub_user", "/jhub_user"]
         auto_login: True
         enable_auth_state: True
-        admin_users: [ "" ]
+        admin_users: []
         scope:
           - openid
           - profile

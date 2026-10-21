@@ -163,4 +163,6 @@ cython_debug/
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
 /helm/ndp-hub/_values*
+/helm/ndp-hub/jupyterhub_secret_local.yaml
+/helm/config-kind
 /helm/ndp-hub/
