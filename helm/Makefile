@@ -24,7 +24,7 @@ deploy-prod:
 	 cd ndp-hub && $(PYTHON) generate_values.py --env prod
 	 helm upgrade --cleanup-on-fail --install ndp-hub ndp-hub --kube-context nautilus --namespace ndp --values ndp-hub/_values_prod.yaml
 
-# Local KinD cluster (jhub-local / namespace ndp-test-local): `make kind-up`, then open http://localhost:8080
+# Local KinD cluster (jhub-local / namespace ndp-test-local): `make kind-up`, then open http://localhost:8082
 LOCAL_SECRET_FILE ?= ndp-hub/jupyterhub_secret_local.yaml
 
 .PHONY: kind-up kind-cluster kind-secrets kind-down
@@ -32,7 +32,7 @@ LOCAL_SECRET_FILE ?= ndp-hub/jupyterhub_secret_local.yaml
 kind-up kind-cluster kind-secrets deploy-local kind-down: export KUBECONFIG := $(CURDIR)/config-kind
 
 kind-up: kind-cluster kind-secrets deploy-local
-	@echo "NDP JupyterHub is running at http://localhost:8080"
+	@echo "NDP JupyterHub is running at http://localhost:8082"
 	@echo "To access the k8s kind cluster, run: export KUBECONFIG=$(CURDIR)/config-kind"
 
 kind-cluster:

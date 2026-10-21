@@ -93,7 +93,23 @@ Use this [documentation](https://docs.nationalresearchplatform.org/) for compreh
 Runs the chart with `values_local.yaml` / `spawner_local.py` in a local [KinD](https://kind.sigs.k8s.io/) cluster (context `kind-jhub-local`, namespace `ndp-test-local`).
 The KinD targets keep the cluster credentials in `helm/config-kind` (git-ignored) instead of `~/.kube/config`; to use `kubectl`/`helm` against the cluster yourself, run `export KUBECONFIG=$PWD/config-kind` from `helm/`.
 
-Prerequisites: Docker, `kind`, `kubectl`, `helm`, Python 3 (as `python3` or `python`), and a Keycloak client on `idp-test.nationaldataplatform.org` that allows the redirect URI `http://localhost:8080/hub/oauth_callback` (ask NDP admins).
+Prerequisites: Docker, `kind`, `kubectl`, `helm`, Python 3 (as `python3` or `python`), and a Keycloak client on `idp-test.nationaldataplatform.org` that allows the redirect URI `http://localhost:8082/hub/oauth_callback` (ask NDP admins).
+
+For the case, to test this with a local instance of Keycloak ([ndp-keycloak-aai](https://github.com/sci-ndp/ndp-keycloak-aai) and already configured), the user will need to modify the following files:
+- [values_local.yaml](helm/ndp-hub/values_local.yaml):
+   ```
+   config:
+      GenericOAuthenticator:
+        oauth_callback_url: http://localhost:8082/hub/oauth_callback  # <-- LOCAL callback URL
+        authorize_url: http://localhost:8080/realms/NDP/protocol/openid-connect/auth
+        token_url: http://host.docker.internal:8080/realms/NDP/protocol/openid-connect/token
+        userdata_url: http://host.docker.internal:8080/realms/NDP/protocol/openid-connect/userinfo
+        logout_redirect_url: http://localhost:8080/realms/NDP/protocol/openid-connect/logout?redirect_uri=http://localhost:8081
+   ```
+- [spawner_local.py](helm/ndp-hub/spawner_local.py):
+   ```
+   KEYCLOAK_URL = "http://host.docker.internal:8080"
+   ```
 
 1. Fill out the Keycloak client credentials:
 
@@ -109,7 +125,7 @@ Prerequisites: Docker, `kind`, `kubectl`, `helm`, Python 3 (as `python3` or `pyt
    make kind-up
    ```
 
-3. Open http://localhost:8080. To become hub admin, add your username to `admin_users` in `ndp-hub/values_local.yaml`.
+3. Open http://localhost:8082. To become hub admin, add your username to `admin_users` in `ndp-hub/values_local.yaml`.
 
 - After editing `values_local.yaml` or `spawner_local.py`: `make deploy-local`
 - After changing the credentials: `make kind-secrets`, then `kubectl --kubeconfig config-kind rollout restart deploy/hub`
