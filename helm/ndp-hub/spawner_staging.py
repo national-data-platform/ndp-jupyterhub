@@ -1,4 +1,5 @@
-from tornado.web import HTTPError
+from tornado.web import HTTPError, authenticated
+from jupyterhub.handlers import BaseHandler
 from kubespawner import KubeSpawner
 from kubernetes import client, config
 from kubernetes.client.exceptions import ApiException
@@ -147,6 +148,12 @@ class MySpawner(KubeSpawner):
                     </style>
 
                     <label for="entity-select">What do you want to work on?</label>
+                    {% if entity_list | length == 1 %}
+                    {% set e = entity_list[0] %}
+                    {% set val = e.workspace_id or e.entity_id %}
+                    <h4 style="margin: 4px 0 16px 0;">{{ e.name or "Unnamed" }}</h4>
+                    <input type="hidden" name="entity" value="{{ val }}">
+                    {% else %}
                     <select class="form-control input" name="entity" required>
                     {% if entity_list and entity_list[0].entity_id == "expired" %}
                     <option value="" disabled selected>{{ entity_list[0].name }}</option>
@@ -163,6 +170,7 @@ class MySpawner(KubeSpawner):
                     {% endfor %}
                     {% endif %}
                     </select>
+                    {% endif %}
 
                     <label for="region">Region</label>
                     <select class="form-control input" name="region">
@@ -233,6 +241,8 @@ class MySpawner(KubeSpawner):
                         (<a href="https://jupyter-docker-stacks.readthedocs.io/en/latest/using/selecting.html" target="_blank">JupyterLab Compatible</a>):
                     </label>
                     <input name="custom_image" type="text" class="form-control input" autocomplete="on" placeholder="Enter your custom image URL here, including the tag. For example: jupyter/r-notebook:latest"/>
+                    
+
                     <label for="timeout">Timeout (in seconds): once a server has been successfully spawned, time to wait until it actually starts </label>
                     <input name="timeout" type="text" class="form-control input" autocomplete="off" placeholder="1200"/>
                     </div>
@@ -254,9 +264,14 @@ class MySpawner(KubeSpawner):
                       <option value="amd64" selected="selected">amd64</option>
                     </select>
 
-                    <b><i>Note:</b> Please stop your server after it is no longer needed, or in case you want to launch different content image
-                    <p style="color:green;">In order to stop the server from running Jupyter Lab, go to File > Hub Control Panel > Stop Server</i></p>
-                    <p><i><b>Note:</b> /home/jovyan/work/_User-Persistent-Storage_CephBlock_ is the persistent volume directory, make sure to save your work in it, otherwise it will be deleted</p>
+                    <div style="background-color: #f8f9fa; border-left: 4px solid #17a2b8; padding: 10px 15px; margin-top: 10px; border-radius: 3px;">
+                      <b>Notes:</b>
+                      <ul style="margin: 5px 0 0 0; padding-left: 20px;">
+                        <li>Please stop your server after it is no longer needed, or in case you want to launch a different content image. To stop the server, go to <b>File &gt; Hub Control Panel &gt; Stop Server</b>.</li>
+                        <li><code>/home/jovyan/work/_User-Persistent-Storage_CephBlock_</code> is the persistent volume directory — save your work there or it will be deleted.</li>
+                        <li>Most users launch their servers with the default settings. You can always stop and restart your server later with different options.</li>
+                      </ul>
+                    </div>
                     """
     
     async def options_from_form(self, formdata):
@@ -396,20 +411,25 @@ class MySpawner(KubeSpawner):
                 'tolerations': tolerations
             })
 
-        self.volume_mounts = [
-            {
-                'name': 'volume-ceph-bw-{username}',
-                'mountPath': f'/home/jovyan/work/{USER_PERSISTENT_STORAGE_FOLDER}',
-            }
-        ]
-        self.volumes = [
-            {
-                'name': 'volume-ceph-bw-{username}',
-                'persistentVolumeClaim': {
-                    'claimName': 'claim-ceph-bw-{username}'
+        if self.user.name.endswith('-collab'):
+            # Collab pods use only the shared group PVC — no private user storage
+            self.volume_mounts = []
+            self.volumes = []
+        else:
+            self.volume_mounts = [
+                {
+                    'name': 'volume-ceph-bw-{username}',
+                    'mountPath': f'/home/jovyan/work/{USER_PERSISTENT_STORAGE_FOLDER}',
                 }
-            },
-        ]
+            ]
+            self.volumes = [
+                {
+                    'name': 'volume-ceph-bw-{username}',
+                    'persistentVolumeClaim': {
+                        'claimName': 'claim-ceph-bw-{username}'
+                    }
+                },
+            ]
         if formdata.get('shm', [0])[0]:
             self.volume_mounts.append({
                 'name': 'dshm',
@@ -456,8 +476,67 @@ class MySpawner(KubeSpawner):
         return options
 
     async def options_form(self, spawner):
+        # Collab users have no auth state of their own — use the requesting user's token
+        if spawner.user.name.endswith('-collab'):
+            entities = []
+            preselected_entity = None
+            if spawner.handler:
+                requesting_user = spawner.handler.current_user
+                if requesting_user:
+                    requesting_auth_state = await requesting_user.get_auth_state()
+                    if requesting_auth_state and requesting_auth_state.get('access_token'):
+                        access_token = requesting_auth_state['access_token']
+                        self._collab_access_token = access_token
+                        self._collab_refresh_token = requesting_auth_state.get('refresh_token', '')
+                        try:
+                            # Extract the group_id_short from the collab username
+                            # Format: {slug}-{group_id_short}-collab → strip -collab, take last segment
+                            base_name = spawner.user.name[:-7]  # strip "-collab" (7 chars)
+                            group_id_short = base_name.split("-")[-1]
+
+                            # Find this group's entity_id from the workspaces API
+                            all_groups = await get_groups_by_cndp(access_token)
+                            matching_group = next(
+                                (g for g in all_groups if g.get("group_id", "").startswith(group_id_short)),
+                                None
+                            )
+
+                            # Fetch requesting user's entities and filter to the group's entity
+                            all_entities = await get_user_entities(access_token)
+                            if matching_group and matching_group.get("entity_id"):
+                                group_entity_id = matching_group["entity_id"]
+                                filtered = [e for e in all_entities if e.get("entity_id") == group_entity_id]
+                                if filtered:
+                                    entities = filtered
+                                    preselected_entity = group_entity_id
+                                else:
+                                    # Entity not in user's list — fall back to all entities
+                                    entities = all_entities
+                            else:
+                                entities = all_entities
+                        except Exception as e:
+                            print(f"Error fetching entities for collab spawn: {e}")
+            self.entity_list = entities
+            template = Template(self.profile_form_template)
+            return template.render(
+                profile_list=self.profile_list,
+                entity_list=entities,
+                preselected_entity=preselected_entity,
+            )
+
         try:
-            entities = await get_user_entities(spawner.access_token)
+            auth_state = await spawner.user.get_auth_state()
+            if not auth_state:
+                raise RuntimeError("No auth state found for user")
+            refreshed = spawner.authenticator.check_refresh_token_keycloak(auth_state)
+            if refreshed:
+                access_token, new_refresh = refreshed
+                auth_state['access_token'] = access_token
+                auth_state['refresh_token'] = new_refresh
+                await spawner.user.save_auth_state(auth_state)
+            else:
+                access_token = auth_state.get('access_token')
+            entities = await get_user_entities(access_token)
         except Exception as e:
             print(f"Error fetching entities: {e}")
             entities = [{
@@ -560,12 +639,13 @@ class MyAuthenticator(GenericOAuthenticator):
 
 # pass access_token and refresh_token for communicating with NDP APIs
 def auth_state_hook(spawner, auth_state):
+    if not auth_state:
+        return
     spawner.access_token = auth_state['access_token']
     spawner.refresh_token = auth_state['refresh_token']
     spawner.environment.update({'ACCESS_TOKEN': spawner.access_token})
     spawner.environment.update({'REFRESH_TOKEN': spawner.refresh_token})
-
-## Functions to retrieve user PVCs
+    
 async def get_user_pvcs(token):
     try:
         conn = http.client.HTTPSConnection("ndp-staging.sdsc.edu")
@@ -581,6 +661,22 @@ async def get_user_pvcs(token):
     except (http.client.HTTPException, TimeoutError, json.JSONDecodeError, socket.timeout):
         return []
     
+async def get_groups_by_cndp(token, where_created="NDP"):
+    """Fetch all groups for a CNDP namespace to look up a group's entity_id."""
+    try:
+        conn = http.client.HTTPSConnection("ndp-staging.sdsc.edu")
+        headers = {
+            'Authorization': f'Bearer {token}',
+            'Content-Type': 'application/json'}
+        conn.request("GET", f"/workspaces-api/group/get_groups_by_cndp?where_created={where_created}", headers=headers)
+        response = conn.getresponse()
+        if response.status != 200:
+            return []
+        return json.loads(response.read().decode("utf-8"))
+    except Exception as e:
+        print(f"Error fetching groups by cndp: {e}")
+        return []
+
 ## Function to retrieve user entities
 async def get_user_entities(token):
     try:
@@ -656,6 +752,13 @@ async def pre_spawn_hook(spawner):
     api = client.CoreV1Api()
     spawner._profile_list = copy.deepcopy(original_profile_list)
 
+    # determine collab flag
+    group_names = {group.name for group in spawner.user.groups}
+    # collab_flag = "--LabApp.collaborative=True" if "collaborative" in group_names else ""
+    spawner.log.info(f"[RTC] User {spawner.user.name} is in groups: {group_names}")
+    if "collaborative" in group_names:
+        spawner.log.info(f"[RTC] Enabling RTC for user {spawner.user.name}")
+
     # pip install jupyterlab-launchpad
     git_creds_command0 = f"mkdir -p /home/jovyan/work/{USER_PERSISTENT_STORAGE_FOLDER}/.git"
     git_creds_command1 = f'git config --global credential.helper "store --file=/home/jovyan/work/{USER_PERSISTENT_STORAGE_FOLDER}/.git/.git-credentials"'
@@ -664,125 +767,223 @@ async def pre_spawn_hook(spawner):
     pip_install_command2 = ("pip install jupyterlab-git==0.50.1 --index-url https://gitlab.nrp-nautilus.io/api/v4/projects/3930/packages/pypi/simple --user")
     pip_install_command3 = (f"pip install ndp-jupyterlab-extension=={NDP_EXT_VERSION} --index-url https://gitlab.nrp-nautilus.io/api/v4/projects/3930/packages/pypi/simple --user")
     pip_install_command4 = ("pip install 'pexpect>=4.9' --user")
+    pip_install_collab = ('pip install "jupyter-collaboration<3"')
     pelican_exe_command = 'wget -O - "https://dl.pelicanplatform.org/latest/pelican_$(uname -s)_$(uname -m).tar.gz" | tar zx -C /home/jovyan/.local/bin/ --strip-components=1'
 
     # Modify the spawner's start command to include the pip install
     original_cmd = spawner.cmd or ["jupyterhub-singleuser"]
+
+    # Collab pods have no private PVC — skip creating the git credentials directory inside it
+    git_creds = "" if spawner.user.name.endswith('-collab') else f"{git_creds_command0} && {git_creds_command1} && "
+
     spawner.cmd = [
         "bash",
         "-c",
-        f"{git_creds_command0} "
-        f"&& {git_creds_command1} "
-        f"&& {pip_install_command0} || true "
+        f"{git_creds}"
+        f"{pip_install_command0} || true "
         f"&& {pip_install_command1} || true "
         f"&& {pip_install_command2} || true "
         f"&& {pip_install_command3} || true "
         f"&& {pip_install_command4} || true "
+        f"&& {pip_install_collab} || true "
         f"&& {pelican_exe_command} || true "
         f"&& cd /home/jovyan/work || true "
         f"&& exec {' '.join(original_cmd)}"
     ]
 
     username = spawner.user.name
+
+    if username.endswith('-collab'):
+        # Don't create or mount the private user PVC for collab pods
+        spawner.storage_pvc_ensure = False
+        spawner.storage_capacity = ''   # Prevents KubeSpawner from adding the default volume/mount
+        spawner.init_containers = []    # Remove the volume-permissions initContainer that references the private PVC
+
     spawner.environment.update({"CKAN_API_URL": CKAN_API_URL})
     spawner.environment.update({"PREKAN_API_URL": PREKAN_API_URL})
     spawner.environment.update({"WORKSPACE_API_URL": WORKSPACE_API_URL})
     spawner.environment.update({"REFRESH_EVERY_SECONDS": str(REFRESH_EVERY_SECONDS)})
 
-    entity_id = spawner.entity_id
-    workspace_id = spawner.workspace_id
-    entity_name = spawner.entity_name
+    entity_id = getattr(spawner, 'entity_id', '')
+    workspace_id = getattr(spawner, 'workspace_id', '')
+    entity_name = getattr(spawner, 'entity_name', '')
     
     print(f"Workspace ID: {workspace_id}, Entity ID: {entity_id}, Entity Name: {entity_name}")
     spawner.environment.update({'ENTITY_ID': entity_id or ''})
     spawner.environment.update({'WORKSPACE_ID': workspace_id or ''})
     spawner.environment.update({'ENTITY_NAME': entity_name or ''})
 
-    PVCs = await get_user_pvcs(spawner.access_token)
-    if PVCs:
-        print(f"USER SHARED {PVCs}")
-        folder_names = []
-        init_containers = []
-        for pvc in PVCs:
-            if pvc['entity_id'] == entity_id:
-                try:
-                    folder_name = pvc['folder_name'].replace(" ", "-")
-                    id_short = pvc['subgroup_id'][:5]
-                    if folder_name in folder_names:
-                        folder_name = folder_name+claim_name[-5:]
-                    folder_names.append(folder_name)
-                    claim_name = pvc['claim_name']
-                    volume_name = pvc['volume_id']
-                except:
-                    pass
-                try:
-                    api.read_namespaced_persistent_volume_claim(name=claim_name, namespace=NAMESPACE)
-                except ApiException as e:
-                    print(e)
-                    if e.status == 404:
-                        print(f"Creating PVC {claim_name}")
-                        pvc_manifest = {
-                                'apiVersion': 'v1',
-                                'kind': 'PersistentVolumeClaim',
-                                'metadata': {'name': claim_name, 'namespace': NAMESPACE},
-                                'spec': {
-                                    'accessModes': ['ReadWriteMany'],
-                                    'resources': {'requests': {'storage': '5Gi'}},
-                                    'storageClassName': 'rook-cephfs-central'
-                                }
-                            }
-                        api.create_namespaced_persistent_volume_claim(namespace=NAMESPACE, body=pvc_manifest)
-                        print(f"PVC {claim_name} created successfully.")
-                    else:
-                        print(f"Error creating PVC {claim_name}: {e}!!!!!!")
-                        raise
-                logging.info(f"Adding volume and mount for group {folder_name}")
-                init_containers.append({
-                        'name': f'set-permissions-{id_short}',
-                        'image': 'alpine',
-                        'command': ['sh', '-c', f'chmod -R 0777 /shared-storage/{folder_name}'],
-                        'volumeMounts': [{
-                            'name': volume_name,
-                            'mountPath': f'/shared-storage/{folder_name}'
-                        }]
-                    })
-                spawner.extra_volume_mounts.append({
-                        'name': volume_name,
-                        'mountPath': f'/home/jovyan/work/{folder_name}/'
-                    })
-                spawner.extra_volumes.append({
-                        'name': volume_name,
-                        'persistentVolumeClaim': {'claimName': claim_name}
-                    })
-                
-            await update_pvc(spawner.access_token, pvc['pvc_id'])
-        spawner.extra_pod_config = spawner.extra_pod_config or {}
-        spawner.extra_pod_config.setdefault('initContainers', []).extend(init_containers)
+    if username[-6:] == "collab":
+        pvc_token = getattr(spawner, '_collab_access_token', '')
+        if pvc_token:
+            spawner.environment.update({'ACCESS_TOKEN': pvc_token})
+            spawner.environment.update({'REFRESH_TOKEN': getattr(spawner, '_collab_refresh_token', '')})
+    else:
+        pvc_token = getattr(spawner, 'access_token', '')
 
+    if pvc_token:
+        PVCs = await get_user_pvcs(pvc_token)
+        if PVCs:
+            print(f"USER SHARED {PVCs}")
+            folder_names = []
+            init_containers = []
+            for pvc in PVCs:
+                if pvc['entity_id'] == entity_id:
+                    try:
+                        folder_name = pvc['folder_name'].replace(" ", "-")
+                        id_short = pvc['subgroup_id'][:5]
+                        if folder_name in folder_names:
+                            folder_name = folder_name+claim_name[-5:]
+                        folder_names.append(folder_name)
+                        claim_name = pvc['claim_name']
+                        volume_name = pvc['volume_id']
+                    except:
+                        pass
+                    try:
+                        api.read_namespaced_persistent_volume_claim(name=claim_name, namespace=NAMESPACE)
+                    except ApiException as e:
+                        print(e)
+                        if e.status == 404:
+                            print(f"Creating PVC {claim_name}")
+                            pvc_manifest = {
+                                    'apiVersion': 'v1',
+                                    'kind': 'PersistentVolumeClaim',
+                                    'metadata': {'name': claim_name, 'namespace': NAMESPACE},
+                                    'spec': {
+                                        'accessModes': ['ReadWriteMany'],
+                                        'resources': {'requests': {'storage': '5Gi'}},
+                                        'storageClassName': 'rook-cephfs-central'
+                                    }
+                                }
+                            api.create_namespaced_persistent_volume_claim(namespace=NAMESPACE, body=pvc_manifest)
+                            print(f"PVC {claim_name} created successfully.")
+                        else:
+                            print(f"Error creating PVC {claim_name}: {e}!!!!!!")
+                            raise
+                    logging.info(f"Adding volume and mount for group {folder_name}")
+                    init_containers.append({
+                            'name': f'set-permissions-{id_short}',
+                            'image': 'alpine',
+                            'command': ['sh', '-c', f'chmod -R 0777 /shared-storage/{folder_name}'],
+                            'volumeMounts': [{
+                                'name': volume_name,
+                                'mountPath': f'/shared-storage/{folder_name}'
+                            }]
+                        })
+                    spawner.extra_volume_mounts.append({
+                            'name': volume_name,
+                            'mountPath': f'/home/jovyan/work/{folder_name}/'
+                        })
+                    spawner.extra_volumes.append({
+                            'name': volume_name,
+                            'persistentVolumeClaim': {'claimName': claim_name}
+                        })
+                    
+                await update_pvc(pvc_token, pvc['pvc_id'])
+            spawner.extra_pod_config = spawner.extra_pod_config or {}
+            spawner.extra_pod_config.setdefault('initContainers', []).extend(init_containers)
+
+# c.LabServerApp.collaborative = True
 c.JupyterHub.template_paths = ['/etc/jupyterhub/custom']
 c.JupyterHub.spawner_class = MySpawner
+c.JupyterHub.db_url = f"postgresql+psycopg2://jupyterhub:{os.environ.get('JUPYTERHUB_DB_PASS', '')}@postgres:5432/jupyterhub"
 c.JupyterHub.allow_named_servers = False
 c.JupyterHub.authenticator_class = MyAuthenticator
-c.JupyterHub.services = [
-{
-    "name": "service-prometheus",
-    "api_token": os.environ["JUPYTERHUB_METRICS_API_KEY"]
-},
-]
+# Append a service with an API token for Prometheus metrics scraping
+c.JupyterHub.services.append(
+    {
+        "name": "service-prometheus",
+        "api_token": os.environ["JUPYTERHUB_METRICS_API_KEY"]
+    }
+)
 
-# Add a service role to scrape prometheus metrics
-c.JupyterHub.load_roles = [
-{
-    "name": "service-metrics-role",
-    "description": "access metrics",
-    "scopes": [
-        "read:metrics",
-    ],
-    "services": [
-        "service-prometheus",
-    ],
+c.JupyterHub.services.append(
+    {
+        "name": "group-sync",
+        "api_token": os.environ["JUPYTERHUB_GROUP_SYNC_TOKEN"],
+        "admin": True,
+    }
+)
+
+
+# Append a service role to scrape prometheus metrics
+c.JupyterHub.load_roles.append(
+    {
+        "name": "service-metrics-role",
+        "description": "access metrics",
+        "scopes": [
+            "read:metrics",
+        ],
+        "services": [
+            "service-prometheus",
+        ],
+    }
+)
+
+c.JupyterHub.load_groups = {
+    "collaborative": [],
 }
+
+# --- Entity column in collaborations page
+_group_entity_map = {}
+
+class GroupEntityHandler(BaseHandler):
+    @authenticated
+    async def get(self):
+        self.set_header("Content-Type", "application/json")
+        self.finish(json.dumps(_group_entity_map))
+
+class CollaborationsHandler(BaseHandler):
+    @authenticated
+    async def get(self):
+        html = await self.render_template(
+            "collaborations.html",
+            api_page_limit=self.settings.get("api_page_limit", 100),
+        )
+        self.finish(html)
+
+c.JupyterHub.extra_handlers = [
+    (r"/ndp/group-entities", GroupEntityHandler),
+    (r"/collaborations", CollaborationsHandler),
 ]
+# ---
+
+def _fetch_groups_at_startup():
+    try:
+        conn = http.client.HTTPSConnection("ndp-staging.sdsc.edu")
+        conn.request("GET", "/workspaces-api/group/get_groups_by_cndp?where_created=NDP",
+                     headers={"accept": "application/json"})
+        resp = conn.getresponse()
+        if resp.status == 200:
+            return json.loads(resp.read().decode("utf-8"))
+        print(f"[group-sync] Startup fetch returned {resp.status}")
+    except Exception as e:
+        print(f"[group-sync] Failed to fetch groups at hub startup: {e}")
+    return []
+
+def _make_jhub_name(group_id, group_name):
+    import re as _re
+    slug = _re.sub(r"[^a-z0-9]+", "-", group_name.lower()).strip("-")[:24]
+    return f"{slug}-{group_id[:8]}"
+
+for _g in _fetch_groups_at_startup():
+    if not _g.get("members"):  # skip groups with no members — no collab server needed
+        continue
+    _jhub_name = _make_jhub_name(_g["group_id"], _g["group_name"])
+    _collab_user = f"{_jhub_name}-collab"
+    _entity_name = _g.get("entity_name") or ""
+    _entity_type = _g.get("type_of_entity") or ""
+    _group_entity_map[_jhub_name] = f"{_entity_type}: {_entity_name}" if (_entity_type and _entity_name) else _entity_name
+    c.JupyterHub.load_roles.append({
+        "name": f"collab-access-{_jhub_name}",
+        "scopes": [
+            f"access:servers!user={_collab_user}",
+            f"admin:servers!user={_collab_user}",
+            "admin-ui",
+            f"list:users!user={_collab_user}",
+        ],
+        "groups": [_jhub_name],
+    })
 
 # check only once per day not to block single-user
 c.MyAuthenticator.auth_refresh_age = 86300
