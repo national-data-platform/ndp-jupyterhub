@@ -41,7 +41,7 @@ NAMESPACE            = os.environ.get("NAMESPACE", "ndp-test")
 
 HUB_TIMEOUT = 30  # seconds for all JupyterHub API calls
 
-_known_groups = None  # None = first run; dict of {group_id: jhub_name}
+_known_groups = {}  # empty on startup → all groups treated as new on first run
 
 
 def load_keycloak_creds():
@@ -219,10 +219,6 @@ def sync():
         )
         for g in groups
     }
-
-    if _known_groups is None:
-        _known_groups = current_groups
-        log.info(f"First run: recorded {len(_known_groups)} existing groups as baseline")
 
     new_ids     = current_groups.keys() - _known_groups.keys()
     deleted_ids = _known_groups.keys() - current_groups.keys()

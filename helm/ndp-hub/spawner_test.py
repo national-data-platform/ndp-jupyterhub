@@ -960,9 +960,8 @@ def _fetch_groups_at_startup():
     return []
 
 def _make_jhub_name(group_id, group_name):
-    slug = "".join(ch if ch.isalnum() else "-" for ch in group_name.lower()).strip("-")[:24]
-    while "--" in slug:
-        slug = slug.replace("--", "-")
+    import re as _re
+    slug = _re.sub(r"[^a-z0-9]+", "-", group_name.lower()).strip("-")[:24]
     return f"{slug}-{group_id[:8]}"
 
 for _g in _fetch_groups_at_startup():
