@@ -1,0 +1,26 @@
+# One-shot migration pod: copies JupyterHub's SQLite DB into PostgreSQL using pgloader.
+# Run once, then delete. Requires postgres-secret and hub-db-dir PVC to exist.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: sqlite-migrate
+  namespace: ndp-staging
+spec:
+  restartPolicy: Never
+  containers:
+    - name: migrate
+      image: ghcr.io/dimitri/pgloader:latest
+      command: ["sleep", "3600"]
+      env:
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgres-secret
+              key: password
+      volumeMounts:
+        - name: sqlite-db
+          mountPath: /db
+  volumes:
+    - name: sqlite-db
+      persistentVolumeClaim:
+        claimName: hub-db-dir
