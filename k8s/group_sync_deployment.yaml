@@ -31,21 +31,14 @@ roleRef:
   name: group-sync-hub-restarter
   apiGroup: rbac.authorization.k8s.io
 ---
-# Secret holding the JupyterHub API token for the group sync deployment.
-#
-# jupyterhub-api-token: generate with `openssl rand -hex 32`
-#   → must match JUPYTERHUB_GROUP_SYNC_TOKEN in values_test.yaml extraEnv
+# Requires 'group-sync-secret' (key: jupyterhub-api-token) to exist in the namespace
+# before applying (see docs/COLLAB_DEPLOY.md Step 2). It is intentionally not defined
+# in this file, so re-applying this manifest never overwrites the real token.
+# The hub reads the same secret via JUPYTERHUB_GROUP_SYNC_TOKEN in values_<env>.yaml extraEnv.
 #
 # Keycloak client_id/secret are read directly from the existing jupyterhub-secret
 # (mounted as a volume) — no need to duplicate them here.
-apiVersion: v1
-kind: Secret
-metadata:
-  name: group-sync-secret
-  namespace: ndp-staging
-stringData:
-  jupyterhub-api-token: "<JUPYTERHUB_GROUP_SYNC_TOKEN>"
----
+#
 # Deployment — runs the sync script in a continuous poll loop.
 # Apply the ConfigMap separately before applying this file:
 #   kubectl create configmap group-sync-script \

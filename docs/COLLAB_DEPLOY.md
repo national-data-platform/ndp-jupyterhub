@@ -62,10 +62,11 @@ This requires a short maintenance window (hub will be scaled to 0).
 
 ### 4a. Confirm the hub is on SQLite
 
+Check `jupyterhub.hub.db.type` in `values_<env>.yaml` — `sqlite-pvc` means SQLite. You can also confirm the SQLite PVC exists:
+
 ```bash
-kubectl exec -n <ns> $(kubectl get pod -n <ns> -l component=hub -o jsonpath='{.items[0].metadata.name}') \
-  -- env | grep -i db
-# If no DB_URL appears, it's on SQLite
+kubectl get pvc hub-db-dir -n <ns>
+# If this PVC exists and db.type is sqlite-pvc, the hub is on SQLite
 ```
 
 ### 4b. Scale hub to 0
@@ -78,6 +79,12 @@ kubectl scale deployment hub --replicas=0 -n <ns>
 
 The file `k8s/migrate-sqlite-postgres.yaml` mounts the hub's SQLite PVC and runs pgloader.
 Update `claimName` if your PVC name differs from `hub-db-dir`, then:
+
+The pgloader command below expands `$POSTGRES_PASSWORD` in your **local** shell, so export it first (value from Step 1):
+
+```bash
+export POSTGRES_PASSWORD=<POSTGRES_PASSWORD>
+```
 
 ```bash
 kubectl apply -f k8s/migrate-sqlite-postgres.yaml -n <ns>
@@ -94,7 +101,8 @@ kubectl exec -n <ns> $POSTGRES_POD -- psql -U jupyterhub -d jupyterhub \
   -c "SELECT 'users', count(*) FROM users UNION ALL SELECT 'spawners', count(*) FROM spawners UNION ALL SELECT 'api_tokens', count(*) FROM api_tokens;"
 
 # Fix pgloader type mismatches — required or the hub will crashloop on startup
-kubectl exec -n <ns> $POSTGRES_POD -- psql -U jupyterhub -d jupyterhub \
+# Note: -i is required so the local SQL file is piped into the pod's stdin
+kubectl exec -i -n <ns> $POSTGRES_POD -- psql -U jupyterhub -d jupyterhub \
   -f /dev/stdin < k8s/post_migration_fixes.sql
 
 # Clean up migration pod
@@ -148,17 +156,24 @@ jupyterhub:
             key: jupyterhub-api-token
 ```
 
-In `spawner_<env>.py`, ensure `NAMESPACE`, `WORKSPACE_API_URL`, and `KEYCLOAK_URL` point to the correct environment.
+In `spawner_<env>.py`, ensure everything points to the correct environment:
+
+- `NAMESPACE`, `KEYCLOAK_URL`
+- `CKAN_API_URL`, `PREKAN_API_URL`, `WORKSPACE_API_URL`
+- Every hardcoded `http.client.HTTPSConnection("ndp-<env>.sdsc.edu")` call (used by `get_user_pvcs`, `get_groups_by_cndp`, `get_user_entities`, `update_pvc`, `_fetch_groups_at_startup`, etc.). Find them with:
 
 ```bash
-cd helm/ndp-hub && python generate_values.py --env <env>
+grep -n "HTTPSConnection\|sdsc.edu\|idp" helm/ndp-hub/spawner_<env>.py
 ```
 
 ---
 
 ## Step 7 — Deploy hub
 
+Run from the `helm/` directory. The make target runs `generate_values.py --env <env>` and then `helm upgrade` for you:
+
 ```bash
+cd helm
 make deploy-<env>
 
 # Watch hub come up
@@ -190,6 +205,7 @@ curl -s https://<hub-url>/hub/ndp/group-entities \
 
 Always apply the ConfigMap from the file first, then the deployment manifest.
 Update `k8s/group_sync_deployment.yaml` with the correct namespace, `WORKSPACE_API_URL`, `KEYCLOAK_URL`, and `NAMESPACE` env var before applying.
+The manifest does not contain the `group-sync-secret` — it uses the one created in Step 2.
 
 ```bash
 kubectl create configmap group-sync-script \
@@ -198,6 +214,14 @@ kubectl create configmap group-sync-script \
 
 kubectl apply -f k8s/group_sync_deployment.yaml
 ```
+
+**Updating the script later:** the pod only reads `group_sync.py` at startup, so after re-applying the ConfigMap, restart it:
+
+```bash
+kubectl rollout restart deployment group-sync -n <ns>
+```
+
+Note: on every group-sync pod start, all existing groups are treated as new and re-synced (safe — the sync is idempotent), which also triggers one hub rolling restart.
 
 ---
 
@@ -246,7 +270,7 @@ A summary of the non-environment-specific changes introduced in this branch, rel
 
 - **Collaborations page** (`/hub/collaborations`) — custom handler that renders `collaborations.html` in place of the default admin panel. Registered via `c.JupyterHub.extra_handlers`.
 - **Group entity map** (`/hub/ndp/group-entities`) — JSON endpoint serving a `{group_slug: "entity_type: entity_name"}` map used by the collaborations page frontend for the entity column.
-- **Startup group fetch** — at hub boot, fetches all groups from the workspaces API and pre-registers per-group collab access roles (`collab-access-{name}`) so group members can access their collab server immediately without waiting for a hub restart.
+- **Startup group fetch** — at hub boot, fetches all groups (with members) from the workspaces API and registers a per-group collab access role (`collab-access-{name}`) granting group members access to their group's `-collab` server. Roles are only loaded at hub startup, so newly created groups need a hub restart — group-sync triggers this automatically.
 - **Collab pod spawning** — usernames ending in `-collab` take a separate spawn path: uses the *requesting* user's auth token (collab users have no auth state of their own), skips the private user PVC, disables PVC creation (`storage_pvc_ensure = False`), and installs `jupyter-collaboration` at startup.
 - **Single-entity display** — when a user belongs to exactly one entity, the spawn form shows a static label instead of a dropdown.
 - **group-sync service** — registered as a JupyterHub service with `admin: True` using the token from `JUPYTERHUB_GROUP_SYNC_TOKEN`. `c.JupyterHub.load_groups = {"collaborative": []}` pre-creates the `collaborative` group at hub startup.
@@ -260,6 +284,14 @@ A summary of the non-environment-specific changes introduced in this branch, rel
 - Token refresh in `options_form` — explicitly calls `check_refresh_token_keycloak` and saves the refreshed token before fetching entities.
 - Services and load_roles use `.append()` instead of direct assignment — safe for additive config across multiple config blocks.
 
+### `k8s/`
+
+- **`group_sync.py` + `group_sync_deployment.yaml`** — a separate Deployment that polls the workspaces API (every `POLL_INTERVAL` seconds) and, for each group with members, creates the JupyterHub group, adds its members, creates the `{slug}-{group_id_short}-collab` user and adds it to the `collaborative` group. Removes groups/roles deleted upstream and triggers a hub rolling restart when new groups appear. On its first poll after startup it syncs all existing groups.
+- **`postgres.yaml`** — PostgreSQL 15 Deployment, PVC and Service for the hub DB.
+- **`migrate-sqlite-postgres.yaml` + `post_migration_fixes.sql`** — one-time SQLite → PostgreSQL migration (Step 4).
+
+> The group slug logic (`make_jhub_name` in `group_sync.py` and `_make_jhub_name` in the spawner) must stay identical, otherwise collab-access roles reference groups that don't exist.
+
 ---
 
 ## Rollback
@@ -267,7 +299,13 @@ A summary of the non-environment-specific changes introduced in this branch, rel
 If the hub fails to start after Step 7:
 
 ```bash
-helm rollback <release-name> -n <ns>
+helm rollback ndp-hub -n <ns>
 ```
 
-If migrated from SQLite, the original PVC (`hub-db-dir`) is still intact. Revert `db.type` to `sqlite-pvc` in the values file and redeploy to restore the previous state.
+If migrated from SQLite, the original PVC (`hub-db-dir`) is still intact. To go back to SQLite, all three of these are needed before redeploying:
+
+1. In `values_<env>.yaml`: set `db.type: sqlite-pvc` (restore the `pvc:` block) and remove `db.url`.
+2. In `values_<env>.yaml`: set `deploymentStrategy.type: Recreate` — SQLite on a ReadWriteOnce PVC cannot do rolling updates.
+3. In `spawner_<env>.py`: remove the `c.JupyterHub.db_url = ...postgres...` line — it overrides the values file, so the hub would otherwise keep connecting to Postgres.
+
+Note: any changes made in the hub while on Postgres (new users, tokens, groups) will not be in the SQLite DB.
