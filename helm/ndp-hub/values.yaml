@@ -1,0 +1,196 @@
+# Shared values for every NDP JupyterHub environment.
+#
+# Per-environment settings (hostnames, Keycloak, NDP API URLs, hub DB, image tags, admins)
+# live in config/<env>.yaml, which is layered on top of this file.
+# spawner.py is injected as hub.extraConfig["default.py"] by the Makefile (--set-file).
+#
+# Deploy:  make deploy-<local|test|staging|prod>     (see helm/Makefile)
+
+jupyterhub:
+  # Settings read by spawner.py through cfg("<key>")
+  custom:
+    ndp:
+      keycloakRealm: NDP
+      sharedStorageClass: rook-cephfs-central   # StorageClass for group shared PVCs
+      spawnTimeout: 1200                        # default http_timeout (seconds) when the form field is empty
+      refreshEverySeconds: 1200
+      features:
+        nautilusScheduling: true   # region/zone/GPU type/arch options + node affinity (NRP Nautilus only)
+        envFilesHook: true         # mount env-contents-manager-config ConfigMap into user pods
+      profiles:
+        - display_name: "Minimal NDP Starter Jupyter Lab"
+          default: true
+          slug: "1"
+        - display_name: "NDP Catalog Search"
+          default: false
+          slug: "10"
+          kubespawner_override:
+            image: gitlab-registry.nrp-nautilus.io/ndp/ndp-docker-images/jhub-spawn:catalog_search_v0.9
+        - display_name: "Physics Guided Machine Learning Starter Code "
+          slug: "2"
+          default: false
+          kubespawner_override:
+            image: gitlab-registry.nrp-nautilus.io/ndp/ndp-docker-images/jhub-spawn:pgml_v0.1.7.3
+        - display_name: "SAGE Pilot Streaming Data Starter Code"
+          slug: "3"
+          default: false
+          kubespawner_override:
+            image: gitlab-registry.nrp-nautilus.io/ndp/ndp-docker-images/jhub-spawn:sage_v0.2.1.6
+        - display_name: "EarthScope Consortium Streaming Data Starter Code"
+          slug: "4"
+          default: false
+          kubespawner_override:
+            image: gitlab-registry.nrp-nautilus.io/ndp/ndp-docker-images/jhub-spawn:earthscope_v0.2.4.3
+        - display_name: "NAIRR Pilot - NASA Harmonized Landsat Sentinel-2 (HLS) Starter Code"
+          slug: "5"
+          default: false
+          kubespawner_override:
+            image: gitlab-registry.nrp-nautilus.io/ndp/ndp-docker-images/jhub-spawn:nair_v0.0.0.17
+        - display_name: "LLM Training (CUDA 12.3, tested with 1 GPU, 12 cores, 64GB RAM, NVIDIA A100-80GB)"
+          slug: "6"
+          default: false
+          kubespawner_override:
+            image: gitlab-registry.nrp-nautilus.io/ndp/ndp-docker-images/jhub-spawn:llm_v0.0.0.16_big
+        - display_name: "LLM Service Client (Minimal, No CUDA)"
+          slug: "7"
+          default: false
+          kubespawner_override:
+            image: gitlab-registry.nrp-nautilus.io/ndp/ndp-docker-images/jhub-spawn:llm_v0.0.0.14_small
+        - display_name: "TLS Fuel-Size Segmentation 2023"
+          slug: "8"
+          default: false
+          kubespawner_override:
+            image: gitlab-registry.nrp-nautilus.io/ndp/ndp-docker-images/jhub-spawn:tls_class_0.0.0.5
+        - display_name: "NOAA-GOES Analysis"
+          slug: "9"
+          default: false
+          kubespawner_override:
+            image: gitlab-registry.nrp-nautilus.io/ndp/ndp-docker-images/jhub-spawn:noaa_goes_v0.0.0.3
+        - display_name: "NOAA-SAGE-EARTHSCOPE Starter Codes"
+          slug: "10"
+          default: false
+          kubespawner_override:
+            image: gitlab-registry.nrp-nautilus.io/ndp/ndp-docker-images/jhub-spawn:utah_demos_0.0.0.1
+
+  hub:
+    image:
+      name: gitlab-registry.nrp-nautilus.io/ndp/ndp-docker-images/jh
+      # tag: set per env
+    extraEnv:
+      JUPYTERHUB_METRICS_API_KEY:
+        valueFrom:
+          secretKeyRef:
+            name: jupyterhub-metrics-secret
+            key: metrics-api-key
+    existingSecret: jupyterhub-secret   # Keycloak client_id / client_secret (see jupyterhub_secret.yaml)
+    config:
+      GenericOAuthenticator:
+        login_service: keycloak
+        username_claim: preferred_username
+        userdata_params:
+          state: state
+        allow_all: False
+        allowed_groups: ["jhub_user", "/jhub_user"]
+        auto_login: True
+        enable_auth_state: True
+        scope:
+          - openid
+          - profile
+      JupyterHub:
+        authenticator_class: generic-oauth
+    service:
+      type: ClusterIP
+      annotations: {}
+    # deploymentStrategy and db: set per env (sqlite needs Recreate, postgres allows RollingUpdate)
+    resources:
+      limits:
+        cpu: "2"
+        memory: 1Gi
+      requests:
+        cpu: 100m
+        memory: 512Mi
+    networkPolicy:
+      enabled: false
+
+  proxy:
+    secretToken: ""  # Empty: the chart reuses the token already stored in the cluster (or generates one)
+    service:
+      type: ClusterIP
+    chp:
+      resources:
+        limits:
+          cpu: "2"
+          memory: 1Gi
+        requests:
+          cpu: 200m
+          memory: 512Mi
+
+  singleuser:
+    uid: 1000
+    fsGid: 100
+    allowPrivilegeEscalation: true
+    extraPodConfig:
+      securityContext:
+          fsGroupChangePolicy: "OnRootMismatch"
+    cloudMetadata:
+      blockWithIptables: false
+    networkPolicy:
+      enabled: false
+    initContainers:
+    - name: volume-permissions
+      image: busybox
+      command: ["sh", "-c", "chmod 777 -R /home/jovyan/work/_User-Persistent-Storage_CephBlock_"]
+      volumeMounts:
+        - mountPath: /home/jovyan/work/_User-Persistent-Storage_CephBlock_
+          name: volume-ceph-bw-{username}
+    storage:
+      extraLabels: {}
+      capacity: 10Gi
+      homeMountPath: /home/jovyan/work/_User-Persistent-Storage_CephBlock_
+      dynamic:
+        storageClass: rook-ceph-block
+        pvcNameTemplate: claim-ceph-bw-{username}
+        volumeNameTemplate: volume-ceph-bw-{username}
+        storageAccessModes: [ReadWriteOnce]
+
+    image:
+      name: gitlab-registry.nrp-nautilus.io/ndp/ndp-docker-images/jhub-spawn
+      tag: rstudio_vscode_v0.0.6
+    startTimeout: 1200
+    cpu:
+      limit: 3
+      guarantee: 3
+    memory:
+      limit: 32G
+      guarantee: 32G
+    extraResource:
+      limits: {}
+      guarantees: {}
+    cmd: jupyterhub-singleuser
+    defaultUrl: "/lab"
+
+  scheduling:
+    userScheduler:
+      enabled: false
+    userPlaceholder:
+      enabled: false
+  prePuller:
+    hook:
+      enabled: false
+    continuous:
+      enabled: false
+
+  ingress:
+    enabled: true
+    annotations:
+      kubernetes.io/ingress.class: haproxy
+    pathSuffix: ''
+
+  cull:
+    enabled: true
+    users: false
+    removeNamedServers: false
+    timeout: 3600
+    every: 600
+    concurrency: 10
+    maxAge: 0

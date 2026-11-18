@@ -1,28 +1,29 @@
-# COMPOSE_FILE=docker-compose.dev.yaml
+# NDP JupyterHub deploys: shared ndp-hub/values.yaml + ndp-hub/config/<env>.yaml + ndp-hub/spawner.py
+# prod deploys only from main (in sync with origin/main).
 
-# First python3/python on PATH that is Python 3; override with `make PYTHON=/path/to/python`
-PYTHON ?= $(or $(shell \
-    for p in python3 python; do \
-      $$p -c 'import sys; sys.exit(sys.version_info[0] < 3)' >/dev/null 2>&1 \
-        && { echo $$p; break; }; \
-    done), \
-  $(error Python 3 not found on PATH. Please install Python 3 \
-    (https://www.python.org/downloads/) and re-run make))
+DEPLOY = helm upgrade --cleanup-on-fail --install ndp-hub ndp-hub \
+	--set-file 'jupyterhub.hub.extraConfig.default\.py=ndp-hub/spawner.py' \
+	--description "$@ from $$(git rev-parse --abbrev-ref HEAD)@$$(git rev-parse --short HEAD)"
 
 default: deploy-test
 
 deploy-test:
-	 cd ndp-hub && $(PYTHON) generate_values.py --env test
-	 helm upgrade --cleanup-on-fail --install ndp-hub ndp-hub --kube-context nautilus --namespace ndp-test --values ndp-hub/_values_test.yaml
-deploy-local:
-	 cd ndp-hub && $(PYTHON) generate_values.py --env local
-	 helm upgrade --cleanup-on-fail --install ndp-hub ndp-hub --kube-context kind-jhub-local --namespace ndp-test-local --values ndp-hub/_values_local.yaml
+	$(DEPLOY) --kube-context nautilus --namespace ndp-test -f ndp-hub/config/test.yaml
 deploy-staging:
-	 cd ndp-hub && $(PYTHON) generate_values.py --env staging
-	 helm upgrade --cleanup-on-fail --install ndp-hub ndp-hub --kube-context nautilus --namespace ndp-staging --values ndp-hub/_values_staging.yaml
-deploy-prod:
-	 cd ndp-hub && $(PYTHON) generate_values.py --env prod
-	 helm upgrade --cleanup-on-fail --install ndp-hub ndp-hub --kube-context nautilus --namespace ndp --values ndp-hub/_values_prod.yaml
+	$(DEPLOY) --kube-context nautilus --namespace ndp-staging -f ndp-hub/config/staging.yaml
+deploy-prod: check-main
+	$(DEPLOY) --kube-context nautilus --namespace ndp -f ndp-hub/config/prod.yaml
+deploy-local:
+	$(DEPLOY) --kube-context kind-jhub-local --namespace ndp-test-local -f ndp-hub/config/local.yaml
+
+# prod: must be on main and in sync with origin/main; warn on uncommitted changes
+check-main:
+	@test "$$(git rev-parse --abbrev-ref HEAD)" = main || { echo "ERROR: deploy prod from main only"; exit 1; }
+	@git fetch -q origin main && test "$$(git rev-parse HEAD)" = "$$(git rev-parse origin/main)" || \
+		{ echo "ERROR: local main is not in sync with origin/main"; exit 1; }
+	@git diff --quiet HEAD || echo "WARNING: deploying uncommitted changes"
+
+.PHONY: default deploy-test deploy-staging deploy-prod deploy-local check-main
 
 # Local KinD cluster (jhub-local / namespace ndp-test-local): `make kind-up`, then open http://localhost:8082
 LOCAL_SECRET_FILE ?= ndp-hub/jupyterhub_secret_local.yaml
