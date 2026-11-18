@@ -11,6 +11,7 @@ import copy
 import os
 import base64
 import http.client
+from urllib.parse import urlparse
 import socket
 import json
 from datetime import date, datetime
@@ -43,6 +44,9 @@ USER_PERSISTENT_STORAGE_FOLDER = "_User-Persistent-Storage_CephBlock_"
 CKAN_API_URL = "https://nationaldataplatform.org/catalog/api/3/action/"
 PREKAN_API_URL = "https://nationaldataplatform.org/catalog2/ndp/"
 WORKSPACE_API_URL = "https://nationaldataplatform.org/workspaces-api"
+_ws_api = urlparse(WORKSPACE_API_URL)
+WORKSPACE_API_HOST = _ws_api.netloc
+WORKSPACE_API_PATH = _ws_api.path.rstrip("/")
 REFRESH_EVERY_SECONDS = 1200
 
 os.environ['JUPYTERHUB_CRYPT_KEY'] = token_hex(32)
@@ -568,11 +572,11 @@ def auth_state_hook(spawner, auth_state):
 ## Functions to retrieve user PVCs
 async def get_user_pvcs(token):
     try:
-        conn = http.client.HTTPSConnection("nationaldataplatform.org")
+        conn = http.client.HTTPSConnection(WORKSPACE_API_HOST)
         headers = {
             'Authorization': f'Bearer {token}',
             'Content-Type': 'application/json'}
-        conn.request("GET", "/workspaces-api/read_pvc_by_user", headers=headers)
+        conn.request("GET", f"{WORKSPACE_API_PATH}/read_pvc_by_user", headers=headers)
         response = conn.getresponse()
         if response.status != 200:
             return []
@@ -584,24 +588,24 @@ async def get_user_pvcs(token):
 ## Function to retrieve user entities
 async def get_user_entities(token):
     try:
-        conn = http.client.HTTPSConnection("nationaldataplatform.org")
+        conn = http.client.HTTPSConnection(WORKSPACE_API_HOST)
         headers = {
             'Authorization': f'Bearer {token}',
             'Content-Type': 'application/json'}
-        conn.request("GET", "/workspaces-api/get_entity_names_by_user", headers=headers)
+        conn.request("GET", f"{WORKSPACE_API_PATH}/get_entity_names_by_user", headers=headers)
         response = conn.getresponse()
         if response.status != 200:
             raise RuntimeError(f"Request failed with status {response.status}: {response.reason}")
         data = json.loads(response.read().decode("utf-8"))
         return data
-    except (http.client.HTTPException, TimeoutError, json.JSONDecodeError, socket.timeout):
-        raise RuntimeError(f"Error while fetching user entities: {e}")
+    except (http.client.HTTPException, OSError, json.JSONDecodeError) as e:
+        raise RuntimeError(f"Error while fetching user entities: {e}") from e
 
 ## Function to update PVC status
 
 async def update_pvc(token, pvc_id):
     try:
-        conn = http.client.HTTPSConnection("nationaldataplatform.org")
+        conn = http.client.HTTPSConnection(WORKSPACE_API_HOST)
         headers = {
             'Authorization': f'Bearer {token}',
             'Content-Type': 'application/json'
@@ -613,34 +617,7 @@ async def update_pvc(token, pvc_id):
             "last_mounted": datetime.utcnow().isoformat()
         })
 
-        conn.request("PUT", "/workspaces-api/update_pvc", body=payload, headers=headers)
-        response = conn.getresponse()
-
-        if response.status == 200:
-            print(f"PVC with id {pvc_id} updated succesfully")
-        else:
-            print(f"Failed to update PVC with id {pvc_id}")
-
-    except (http.client.HTTPException, TimeoutError, json.JSONDecodeError, socket.timeout) as e:
-        return f"Exception occurred: {str(e)}"
-
-## Function to update PVC status
-
-async def update_pvc(token, pvc_id):
-    try:
-        conn = http.client.HTTPSConnection("nationaldataplatform.org")
-        headers = {
-            'Authorization': f'Bearer {token}',
-            'Content-Type': 'application/json'
-        }
-
-        payload = json.dumps({
-            "pvc_id": pvc_id,
-            "status": "Active",
-            "last_mounted": datetime.utcnow().isoformat()
-        })
-
-        conn.request("PUT", "/workspaces-api/update_pvc", body=payload, headers=headers)
+        conn.request("PUT", f"{WORKSPACE_API_PATH}/update_pvc", body=payload, headers=headers)
         response = conn.getresponse()
 
         if response.status == 200:
@@ -757,8 +734,7 @@ async def pre_spawn_hook(spawner):
                         'name': volume_name,
                         'persistentVolumeClaim': {'claimName': claim_name}
                     })
-                
-            await update_pvc(spawner.access_token, pvc['pvc_id'])
+                await update_pvc(spawner.access_token, pvc['pvc_id'])
         spawner.extra_pod_config = spawner.extra_pod_config or {}
         spawner.extra_pod_config.setdefault('initContainers', []).extend(init_containers)
 
