@@ -1,0 +1,55 @@
+# NDP TEST — Nautilus namespace: ndp-test — https://ndp-test-jupyterhub.nrp-nautilus.io
+# Runs the newest code (test branch) and feature branches under test.
+# The collab infrastructure (Postgres DB, group-sync secret, hub image with collaborations.html)
+# is kept here so switching between the collab branch and other code doesn't change the DB.
+# Layered on top of ../values.yaml. Deploy with: make deploy-test  (any branch)
+
+jupyterhub:
+  custom:
+    ndp:
+      keycloakUrl: https://idp-test.nationaldataplatform.org
+      ckanApiUrl: https://ndp-test.sdsc.edu/catalog/api/3/action/
+      prekanApiUrl: https://ndp-test.sdsc.edu/catalog2/ndp/
+      workspaceApiUrl: https://ndp-test.sdsc.edu/workspaces-api
+      extVersion: 0.0.23+37ebe57
+
+  hub:
+    image:
+      tag: "3.0.14"
+    extraEnv:
+      # Password for the Postgres hub DB (libpq reads PGPASSWORD when the URL has none)
+      PGPASSWORD:
+        valueFrom:
+          secretKeyRef:
+            name: postgres-secret
+            key: password
+      # Used by the collab branch's spawner
+      JUPYTERHUB_DB_PASS:
+        valueFrom:
+          secretKeyRef:
+            name: postgres-secret
+            key: password
+      JUPYTERHUB_GROUP_SYNC_TOKEN:
+        valueFrom:
+          secretKeyRef:
+            name: group-sync-secret
+            key: jupyterhub-api-token
+    config:
+      GenericOAuthenticator:
+        oauth_callback_url: https://ndp-test-jupyterhub.nrp-nautilus.io/hub/oauth_callback
+        authorize_url: https://idp-test.nationaldataplatform.org/realms/NDP/protocol/openid-connect/auth
+        token_url: https://idp-test.nationaldataplatform.org/realms/NDP/protocol/openid-connect/token
+        userdata_url: https://idp-test.nationaldataplatform.org/realms/NDP/protocol/openid-connect/userinfo
+        logout_redirect_url: https://idp-test.nationaldataplatform.org/realms/NDP/protocol/openid-connect/logout?post_logout_redirect_uri=https://ndp-test-jupyterhub.nrp-nautilus.io/&client_id=jupyterhub_test
+        admin_users: [""]
+    deploymentStrategy:
+      type: RollingUpdate
+    db:
+      type: postgres
+      url: "postgresql+psycopg2://jupyterhub@postgres:5432/jupyterhub"
+
+  ingress:
+    hosts: ["ndp-test-jupyterhub.nrp-nautilus.io"]
+    tls:
+      - hosts:
+        - ndp-test-jupyterhub.nrp-nautilus.io

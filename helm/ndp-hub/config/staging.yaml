@@ -1,0 +1,42 @@
+# NDP STAGING — Nautilus namespace: ndp-staging — https://ndp-staging-jupyterhub.nrp-nautilus.io
+# Pre-prod check: runs the same code as prod (main). Keeps its Postgres hub DB.
+# Layered on top of ../values.yaml. Deploy with: make deploy-staging  (from helm/)
+
+jupyterhub:
+  custom:
+    ndp:
+      keycloakUrl: https://idp.nationaldataplatform.org
+      ckanApiUrl: https://ndp-staging.sdsc.edu/catalog/api/3/action/
+      prekanApiUrl: https://ndp-staging.sdsc.edu/catalog2/ndp/
+      workspaceApiUrl: https://ndp-staging.sdsc.edu/workspaces-api
+      extVersion: 0.0.23+37ebe57
+
+  hub:
+    image:
+      tag: "2.0.15"
+    extraEnv:
+      # Password for the Postgres hub DB (libpq reads PGPASSWORD when the URL has none)
+      PGPASSWORD:
+        valueFrom:
+          secretKeyRef:
+            name: postgres-secret
+            key: password
+    config:
+      GenericOAuthenticator:
+        oauth_callback_url: https://ndp-staging-jupyterhub.nrp-nautilus.io/hub/oauth_callback
+        authorize_url: https://idp.nationaldataplatform.org/realms/NDP/protocol/openid-connect/auth
+        token_url: https://idp.nationaldataplatform.org/realms/NDP/protocol/openid-connect/token
+        userdata_url: https://idp.nationaldataplatform.org/realms/NDP/protocol/openid-connect/userinfo
+        logout_redirect_url: https://idp.nationaldataplatform.org/realms/NDP/protocol/openid-connect/logout?post_logout_redirect_uri=https://ndp-staging-jupyterhub.nrp-nautilus.io/&client_id=jupyterhub_staging
+        admin_users: [""]
+    deploymentStrategy:
+      type: RollingUpdate
+    db:
+      type: postgres
+      url: "postgresql+psycopg2://jupyterhub@postgres:5432/jupyterhub"
+
+  ingress:
+    hosts: ["ndp-staging-jupyterhub.nrp-nautilus.io"]
+    tls:
+      - hosts:
+        - ndp-staging-jupyterhub.nrp-nautilus.io

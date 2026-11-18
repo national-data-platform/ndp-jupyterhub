@@ -1,0 +1,38 @@
+# NDP PROD — Nautilus namespace: ndp — https://ndp-jupyterhub.nrp-nautilus.io
+# Layered on top of ../values.yaml. Deploy with: make deploy-prod  (only from main, in sync with origin/main)
+
+jupyterhub:
+  custom:
+    ndp:
+      keycloakUrl: https://idp.nationaldataplatform.org
+      ckanApiUrl: https://nationaldataplatform.org/catalog/api/3/action/
+      prekanApiUrl: https://nationaldataplatform.org/catalog2/ndp/
+      workspaceApiUrl: https://nationaldataplatform.org/workspaces-api
+      extVersion: 0.0.23+37ebe57
+
+  hub:
+    image:
+      tag: "2.0.15"
+    config:
+      GenericOAuthenticator:
+        oauth_callback_url: https://ndp-jupyterhub.nrp-nautilus.io/hub/oauth_callback
+        authorize_url: https://idp.nationaldataplatform.org/realms/NDP/protocol/openid-connect/auth
+        token_url: https://idp.nationaldataplatform.org/realms/NDP/protocol/openid-connect/token
+        userdata_url: https://idp.nationaldataplatform.org/realms/NDP/protocol/openid-connect/userinfo
+        logout_redirect_url: https://idp.nationaldataplatform.org/realms/NDP/protocol/openid-connect/logout?post_logout_redirect_uri=https://ndp-jupyterhub.nrp-nautilus.io/&client_id=ndp_jupyterhub_prod
+        admin_users: [""]
+    deploymentStrategy:
+      type: Recreate   # required with sqlite-pvc
+    db:
+      type: sqlite-pvc
+      pvc:
+        accessModes:
+          - ReadWriteOnce
+        storage: 20Gi   # matches the live PVC; PVCs cannot be shrunk
+        storageClassName: rook-ceph-block
+
+  ingress:
+    hosts: ["ndp-jupyterhub.nrp-nautilus.io"]
+    tls:
+      - hosts:
+        - ndp-jupyterhub.nrp-nautilus.io

@@ -1,0 +1,71 @@
+# LOCAL — kind cluster "jhub-local", namespace ndp-test-local — http://localhost:8082
+# Uses the test Keycloak and NDP test APIs. No Nautilus scheduling, no env-files ConfigMap.
+# Layered on top of ../values.yaml. Deploy with: make kind-up  (or make deploy-local)
+
+jupyterhub:
+  custom:
+    ndp:
+      keycloakUrl: https://idp-test.nationaldataplatform.org
+      ckanApiUrl: https://ndp-test.sdsc.edu/catalog/api/3/action/
+      prekanApiUrl: https://ndp-test.sdsc.edu/catalog2/ndp/
+      workspaceApiUrl: https://ndp-test.sdsc.edu/workspaces-api
+      extVersion: 0.0.23+37ebe57
+      sharedStorageClass: standard
+      spawnTimeout: 300
+      features:
+        nautilusScheduling: false
+        envFilesHook: false
+
+  hub:
+    image:
+      tag: "2.0.11"
+    config:
+      GenericOAuthenticator:
+        oauth_callback_url: http://localhost:8082/hub/oauth_callback
+        authorize_url: https://idp-test.nationaldataplatform.org/realms/NDP/protocol/openid-connect/auth
+        token_url: https://idp-test.nationaldataplatform.org/realms/NDP/protocol/openid-connect/token
+        userdata_url: https://idp-test.nationaldataplatform.org/realms/NDP/protocol/openid-connect/userinfo
+        logout_redirect_url: https://idp-test.nationaldataplatform.org/realms/NDP/protocol/openid-connect/logout?redirect_uri=http://localhost:8080
+        admin_users: []
+    deploymentStrategy:
+      type: Recreate
+    db:
+      type: sqlite-pvc
+      pvc:
+        accessModes:
+          - ReadWriteOnce
+        storage: 512Mi
+        storageClassName: standard
+    resources:
+      limits:
+        cpu: "1"
+        memory: 1G
+      requests:
+        cpu: 100m
+        memory: 512M
+
+  proxy:
+    service:
+      type: NodePort
+      nodePorts:
+        http: 30080
+    chp:
+      resources: null   # use chart defaults
+
+  singleuser:
+    storage:
+      capacity: 2Gi
+      dynamic:
+        storageClass: standard
+    image:
+      tag: minimal_0.0.10
+    startTimeout: 300
+    cpu:
+      limit: 1
+      guarantee: 1
+    memory:
+      limit: 2G
+      guarantee: null
+
+  ingress:
+    enabled: false

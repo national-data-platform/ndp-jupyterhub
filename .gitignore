@@ -165,4 +165,4 @@ cython_debug/
 /helm/ndp-hub/_values*
 /helm/ndp-hub/jupyterhub_secret_local.yaml
 /helm/config-kind
-/helm/ndp-hub/
+.DS_Store

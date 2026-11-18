@@ -19,3 +19,9 @@
 .project
 .idea/
 *.tmproj
+# Deploy inputs passed with -f / --set-file, and local secrets: keep them out of the packaged chart
+config/
+*.py
+__pycache__/
+_values*
+jupyterhub_secret*.yaml
