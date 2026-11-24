@@ -11,7 +11,7 @@ import copy
 import os
 import base64
 import http.client
-from urllib.parse import urlparse
+from urllib.parse import urlparse, quote
 import socket
 import json
 from datetime import date, datetime
@@ -50,6 +50,26 @@ WORKSPACE_API_PATH = _ws_api.path.rstrip("/")
 REFRESH_EVERY_SECONDS = 1200
 
 os.environ['JUPYTERHUB_CRYPT_KEY'] = token_hex(32)
+
+GPU_TYPES = [
+    ("NVIDIA-GeForce-RTX-2080-Ti", "NVIDIA GeForce RTX 2080 Ti"),
+    ("NVIDIA-GeForce-GTX-1070", "NVIDIA GeForce GTX 1070"),
+    ("NVIDIA-GeForce-GTX-1080", "NVIDIA GeForce GTX 1080"),
+    ("Quadro-M4000", "Quadro M4000"),
+    ("NVIDIA-A100-PCIE-40GB-MIG-2g.10gb", "NVIDIA A100 MIG 2g.10gb"),
+    ("NVIDIA-A100-SXM4-80GB", "NVIDIA A100 80GB"),
+    ("NVIDIA-GeForce-GTX-1080-Ti", "NVIDIA GeForce GTX 1080 Ti"),
+    ("NVIDIA-TITAN-Xp", "NVIDIA TITAN Xp"),
+    ("Tesla-T4", "Tesla T4"),
+    ("NVIDIA-GeForce-RTX-3090", "NVIDIA GeForce RTX 3090"),
+    ("NVIDIA-TITAN-RTX", "NVIDIA TITAN RTX"),
+    ("NVIDIA-RTX-A5000", "NVIDIA RTX A5000"),
+    ("Quadro-RTX-6000", "Quadro RTX 6000"),
+    ("Tesla-V100-SXM2-32GB", "Tesla V100 SXM2 32GB"),
+    ("NVIDIA-A40", "NVIDIA A40"),
+    ("NVIDIA-RTX-A6000", "NVIDIA RTX A6000"),
+    ("Quadro-RTX-8000", "Quadro RTX 8000"),
+]
 
 original_profile_list = [
     {
@@ -159,7 +179,7 @@ class MySpawner(KubeSpawner):
                     {% set value = entity.workspace_id or entity.entity_id %}
                     {% if value %}
                     {% set selected = "selected" if preselected_entity and value|string == preselected_entity|string else "" %}
-                    <option value="{{ value|string }}" {{ selected }}>
+                    <option value="{{ value|string }}" {% if entity.workspace_id %}data-workspace="1"{% endif %} {{ selected }}>
                         {{ entity.name or "Unnamed" }}
                     </option>
                     {% endif %}
@@ -167,6 +187,28 @@ class MySpawner(KubeSpawner):
                     {% endif %}
                     </select>
 
+                    <label for="resource_config">Resource configuration</label>
+                    <select class="form-control input" name="resource_config">
+                      {% for c in configs %}
+                      <option value="{{ c.id|e }}" {% if c.id == defaults.id %}selected{% endif %}
+                              data-cores="{{ c.cores }}" data-ram="{{ c.ram }}" data-gpus="{{ c.gpus }}"
+                              data-gputype="{{ c.gputype|e }}" data-profile="{{ c.profile }}"
+                              data-custom-image="{{ c.custom_image|e }}">{{ c.name|e }}</option>
+                      {% endfor %}
+                      <option value="custom" {% if defaults.id == "custom" %}selected{% endif %}>Custom</option>
+                    </select>
+
+                    <!-- Summary of the pod specs, shown instead of the fields when a config is selected -->
+                    <div id="config-summary" style="display:none; margin:15px 0; padding:12px 15px; border:1px solid #ccc; border-radius:4px; background:#f7f7f7;">
+                      <strong data-s="name"></strong>
+                      <div>Cores: <span data-s="cores"></span> &middot; RAM: <span data-s="ram"></span> GB &middot; GPUs: <span data-s="gpus"></span></div>
+                      <div>Image: <span data-s="image"></span></div>
+                      <small>Region: <span data-s="region"></span> &middot; Zone: <span data-s="zone"></span> &middot; Scratch: <span data-s="scratch"></span>
+                        &middot; /dev/shm: <span data-s="shm"></span> &middot; Timeout: <span data-s="timeout"></span> s &middot; Arch: <span data-s="arch"></span></small>
+                    </div>
+
+                    <!-- All spawn options; only shown for "Custom" -->
+                    <div id="custom-fields">
                     <label for="region">Region</label>
                     <select class="form-control input" name="region">
                       <option value="" selected="selected">Any</option>
@@ -184,37 +226,23 @@ class MySpawner(KubeSpawner):
 
 
                     <label for="gpus">GPUs</label>
-                    <input class="form-control input" type="number" name="gpus" value="0" min="0" max="4"/>
+                    <input class="form-control input" type="number" name="gpus" value="{{ defaults.gpus }}" min="0" max="4"/>
                     <br/>
                     <label for="ram">Cores</label>
-                    <input class="form-control input" type="number" name="cores" value="1" min="0" max="48"/>
+                    <input class="form-control input" type="number" name="cores" value="{{ defaults.cores }}" min="0" max="48"/>
                     <br/>
                     <label for="ram">RAM, GB</label>
-                    <input class="form-control input" type="number" name="ram" value="16" min="1" max="256"/>
+                    <input class="form-control input" type="number" name="ram" value="{{ defaults.ram }}" min="1" max="256"/>
                     <br/>
                     <label for="scratch">Extra scratch space, GB</label>
                     <input class="form-control input" type="number" name="scratch" value="0" min="0" max="2000"/>
                     <br/>
                     <label for="gputype">GPU type</label>
                     <select class="form-control input" name="gputype">
-                      <option value="" selected="selected">Any</option>
-                      <option value="NVIDIA-GeForce-RTX-2080-Ti">NVIDIA GeForce RTX 2080 Ti</option>
-                      <option value="NVIDIA-GeForce-GTX-1070">NVIDIA GeForce GTX 1070</option>
-                      <option value="NVIDIA-GeForce-GTX-1080">NVIDIA GeForce GTX 1080</option>
-                      <option value="Quadro-M4000">Quadro M4000</option>
-                      <option value="NVIDIA-A100-PCIE-40GB-MIG-2g.10gb">NVIDIA A100 MIG 2g.10gb</option>
-                      <option value="NVIDIA-A100-SXM4-80GB">NVIDIA A100 80GB</option>
-                      <option value="NVIDIA-GeForce-GTX-1080-Ti">NVIDIA GeForce GTX 1080 Ti</option>
-                      <option value="NVIDIA-TITAN-Xp">NVIDIA TITAN Xp</option>
-                      <option value="Tesla-T4">Tesla T4</option>
-                      <option value="NVIDIA-GeForce-RTX-3090">NVIDIA GeForce RTX 3090</option>
-                      <option value="NVIDIA-TITAN-RTX">NVIDIA TITAN RTX</option>
-                      <option value="NVIDIA-RTX-A5000">NVIDIA RTX A5000</option>
-                      <option value="Quadro-RTX-6000">Quadro RTX 6000</option>
-                      <option value="Tesla-V100-SXM2-32GB">Tesla V100 SXM2 32GB</option>
-                      <option value="NVIDIA-A40">NVIDIA A40</option>
-                      <option value="NVIDIA-RTX-A6000">NVIDIA RTX A6000</option>
-                      <option value="Quadro-RTX-8000">Quadro RTX 8000</option>
+                      <option value="" {% if not defaults.gputype %}selected{% endif %}>Any</option>
+                      {% for value, label in gpu_types %}
+                      <option value="{{ value }}" {% if value == defaults.gputype %}selected{% endif %}>{{ label }}</option>
+                      {% endfor %}
                     </select>
                     <input class="form-check-input" type="checkbox" name="shm">
                     <label class="form-check-label" for="shm"> /dev/shm for pytorch</label>
@@ -226,7 +254,7 @@ class MySpawner(KubeSpawner):
                     </label>
                     <select name="profile" id="profile-select" class="form-control input">
                         {% for profile in profile_list %}
-                        <option value="{{ loop.index0 }}" {% if profile.default %}selected{% endif %}>
+                        <option value="{{ loop.index0 }}" {% if loop.index0 == defaults.profile %}selected{% endif %}>
                             {{ profile.display_name }}
                             {% if profile.description %} - {{ profile.description }}{% endif %}
                         </option>
@@ -235,7 +263,7 @@ class MySpawner(KubeSpawner):
                     <label for="custom_image">Or Bring Your Own Image 
                         (<a href="https://jupyter-docker-stacks.readthedocs.io/en/latest/using/selecting.html" target="_blank">JupyterLab Compatible</a>):
                     </label>
-                    <input name="custom_image" type="text" class="form-control input" autocomplete="on" placeholder="Enter your custom image URL here, including the tag. For example: jupyter/r-notebook:latest"/>
+                    <input name="custom_image" type="text" class="form-control input" autocomplete="on" value="{{ defaults.custom_image|e }}" placeholder="Enter your custom image URL here, including the tag. For example: jupyter/r-notebook:latest"/>
                     
 
                     <label for="timeout">Timeout (in seconds): once a server has been successfully spawned, time to wait until it actually starts </label>
@@ -258,10 +286,55 @@ class MySpawner(KubeSpawner):
                     <select class="form-control input" name="arch">
                       <option value="amd64" selected="selected">amd64</option>
                     </select>
+                    </div>
 
                     <b><i>Note:</b> Please stop your server after it is no longer needed, or in case you want to launch different content image
                     <p style="color:green;">In order to stop the server from running Jupyter Lab, go to File > Hub Control Panel > Stop Server</i></p>
                     <p><i><b>Note:</b> /home/jovyan/work/_User-Persistent-Storage_CephBlock_ is the persistent volume directory, make sure to save your work in it, otherwise it will be deleted</p>
+
+                    <script>
+                    (function () {
+                      var form = document.getElementById('spawn_form'), f = form && form.elements;
+                      if (!f) return;
+                      var fields = document.getElementById('custom-fields'), summary = document.getElementById('config-summary');
+                      function text(el) { return el ? el.selectedOptions[0].text.replace(/\\s+/g, ' ').trim() : ''; }
+                      function show(key, value) { summary.querySelector('[data-s="' + key + '"]').textContent = value; }
+                      // "Custom" shows all fields; a config hides them, fills them from the config
+                      // (everything else back to its default) and shows a summary instead
+                      function applyConfig() {
+                        var opt = f.resource_config.selectedOptions[0], d = opt.dataset, custom = opt.value === 'custom';
+                        fields.style.display = custom ? '' : 'none';
+                        summary.style.display = custom ? 'none' : '';
+                        if (custom) return;
+                        fields.querySelectorAll('input, select').forEach(function (el) {
+                          if (el.type === 'checkbox') el.checked = el.defaultChecked;
+                          else if (el.tagName === 'SELECT') [].forEach.call(el.options, function (o) { o.selected = o.defaultSelected; });
+                          else el.value = el.defaultValue;
+                        });
+                        f.cores.value = d.cores; f.ram.value = d.ram; f.gpus.value = d.gpus;
+                        if (f.gputype) f.gputype.value = d.gputype;
+                        f.profile.value = d.profile; f.custom_image.value = d.customImage;
+                        show('name', opt.text);
+                        show('cores', d.cores);
+                        show('ram', d.ram);
+                        show('gpus', d.gpus > 0 ? d.gpus + ' \\u00d7 ' + (text(f.gputype) || 'Any') : '0');
+                        show('image', d.customImage || text(f.profile));
+                        show('region', text(f.region) || 'Any');
+                        show('zone', text(f.zone) || 'Any');
+                        show('scratch', f.scratch.value > 0 ? f.scratch.value + ' GB' : 'none');
+                        show('shm', f.shm.checked ? 'on' : 'off');
+                        show('timeout', f.timeout.value || f.timeout.placeholder);
+                        show('arch', text(f.arch) || 'amd64');
+                      }
+                      f.resource_config.addEventListener('change', applyConfig);
+                      applyConfig();
+                      // Switching workspace reloads the form with that workspace's configs
+                      f.entity.addEventListener('change', function () {
+                        var opt = f.entity.selectedOptions[0];
+                        location.search = '?' + (opt.dataset.workspace ? 'workspace' : 'source') + '=' + encodeURIComponent(opt.value);
+                      });
+                    })();
+                    </script>
                     """
     
     async def options_from_form(self, formdata):
@@ -272,7 +345,8 @@ class MySpawner(KubeSpawner):
             return formdata
         
         selected_profile = int(formdata.get('profile', [0])[0])
-        options = self.profile_list[selected_profile] #self._profile_list[selected_profile]
+        # Copy so a custom image doesn't get saved into this user's profile_list for later launches
+        options = copy.deepcopy(self.profile_list[selected_profile])
         # print(f'2. options: {options}')
 
         # Ensure kubespawner_override exists
@@ -461,6 +535,7 @@ class MySpawner(KubeSpawner):
         return options
 
     async def options_form(self, spawner):
+        access_token = None
         try:
             auth_state = await spawner.user.get_auth_state()
             if not auth_state:
@@ -480,20 +555,40 @@ class MySpawner(KubeSpawner):
                 "entity_id": "expired",
                 "name": "Session expired. Please log out and log in again."
                 }]
-        # Grab ?source=... from request (if present)
+        # Grab ?source=... and ?workspace=... from request (if present)
         source = None
-        if spawner.handler and "source" in spawner.handler.request.arguments:
-            source = spawner.handler.request.arguments["source"][0].decode("utf-8")
+        workspace = None
+        if spawner.handler:
+            args = spawner.handler.request.arguments
+            if "source" in args:
+                source = args["source"][0].decode("utf-8")
+            if "workspace" in args:
+                workspace = args["workspace"][0].decode("utf-8")
 
         print(f"Entities fetched: {entities}")
-        print(f"Source: {source}")
+        print(f"Source: {source}, Workspace: {workspace}")
         self.entity_list = entities
+
+        # Workspace resource configs; preselect the default one, else the first, else "Custom"
+        resources = []
+        if workspace and access_token:
+            resources = await get_workspace_resources(access_token, workspace)
+        configs = [resource_to_form_config(r, self.profile_list) for r in resources]
+        custom = {
+            "id": "custom",
+            "cores": 1, "ram": 16, "gpus": 0, "gputype": "", "custom_image": "",
+            "profile": next((i for i, p in enumerate(self.profile_list) if p.get('default')), 0),
+        }
+        defaults = next((c for c in configs if c["is_default"]), configs[0] if configs else custom)
 
         template = Template(self.profile_form_template)
         rendered_form = template.render(
             profile_list=self.profile_list,
             entity_list=entities,
-            preselected_entity=source,
+            preselected_entity=workspace or source,
+            gpu_types=GPU_TYPES,
+            configs=configs,
+            defaults=defaults,
         )
         return rendered_form
 
@@ -611,6 +706,45 @@ async def get_user_entities(token):
         return data
     except (http.client.HTTPException, OSError, json.JSONDecodeError) as e:
         raise RuntimeError(f"Error while fetching user entities: {e}") from e
+
+## Function to retrieve a workspace's resource configs, sorted by display_order ([] if unavailable)
+async def get_workspace_resources(token, workspace_id):
+    try:
+        conn = http.client.HTTPSConnection(WORKSPACE_API_HOST, timeout=5)
+        headers = {
+            'Authorization': f'Bearer {token}',
+            'Content-Type': 'application/json'}
+        conn.request("GET", f"{WORKSPACE_API_PATH}/workspace_resource/workspace/{quote(workspace_id, safe='')}", headers=headers)
+        response = conn.getresponse()
+        if response.status != 200:
+            print(f"Resource configs request for workspace {workspace_id} failed with status {response.status}")
+            return []
+        data = json.loads(response.read().decode("utf-8"))
+        resources = (data.get("resources") or []) if isinstance(data, dict) else []
+        return sorted(resources, key=lambda r: r.get("display_order", 0))
+    except (http.client.HTTPException, OSError, json.JSONDecodeError) as e:
+        print(f"Error while fetching resource configs for workspace {workspace_id}: {e}")
+        return []
+
+## Convert a workspace resource config from the API into spawn form values.
+## The image selects the matching pre-built profile, or goes into the custom image box if there is none.
+## A config without an image uses the default profile.
+def resource_to_form_config(resource, profile_list):
+    default_profile = next((i for i, p in enumerate(profile_list) if p.get('default')), 0)
+    image = resource.get("image") or ""
+    profile = next((i for i, p in enumerate(profile_list)
+                    if image and p.get('kubespawner_override', {}).get('image') == image), None)
+    return {
+        "id": resource.get("workspace_resource_id", ""),
+        "name": resource.get("name") or "Unnamed",
+        "is_default": resource.get("is_default", False),
+        "cores": resource.get("cpu_cores") or 1,
+        "ram": resource.get("memory_gb") or 16,
+        "gpus": resource.get("gpu_count") or 0,
+        "gputype": resource.get("gpu_type") or "",
+        "profile": default_profile if profile is None else profile,
+        "custom_image": image if profile is None else "",
+    }
 
 ## Function to update PVC status
 
