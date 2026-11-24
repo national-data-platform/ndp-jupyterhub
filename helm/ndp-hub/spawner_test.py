@@ -200,7 +200,7 @@ class MySpawner(KubeSpawner):
 
                     <!-- Summary of the pod specs, shown instead of the fields when a config is selected -->
                     <div id="config-summary" style="display:none; margin:15px 0; padding:12px 15px; border:1px solid #ccc; border-radius:4px; background:#f7f7f7;">
-                      <strong data-s="name"></strong>
+                      <strong>Configuration Details</strong>
                       <div>Cores: <span data-s="cores"></span> &middot; RAM: <span data-s="ram"></span> GB &middot; GPUs: <span data-s="gpus"></span></div>
                       <div>Image: <span data-s="image"></span></div>
                       <small>Region: <span data-s="region"></span> &middot; Zone: <span data-s="zone"></span> &middot; Scratch: <span data-s="scratch"></span>
@@ -314,7 +314,6 @@ class MySpawner(KubeSpawner):
                         f.cores.value = d.cores; f.ram.value = d.ram; f.gpus.value = d.gpus;
                         if (f.gputype) f.gputype.value = d.gputype;
                         f.profile.value = d.profile; f.custom_image.value = d.customImage;
-                        show('name', opt.text);
                         show('cores', d.cores);
                         show('ram', d.ram);
                         show('gpus', d.gpus > 0 ? d.gpus + ' \\u00d7 ' + (text(f.gputype) || 'Any') : '0');
